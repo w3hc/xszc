@@ -1,0 +1,4 @@
+packages:
+  # Only include the root package, explicitly exclude contracts
+  - '.'
+  - '!contracts'

@@ -1,0 +1,10 @@
+.next
+node_modules
+pnpm-lock.yaml
+public
+build
+coverage
+.vercel
+.github
+.husky
+contracts
