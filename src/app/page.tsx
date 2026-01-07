@@ -11,6 +11,7 @@ type Square = {
 }
 
 const SQUARE_SIZE = 50
+const MAX_SIZE = 8 // Grid spans from (-MAX_SIZE, -MAX_SIZE) to (MAX_SIZE, MAX_SIZE)
 
 const colors = {
   purple: '#8c1c84',
