@@ -238,7 +238,7 @@ export default function Header() {
               transition="transform 0.5s ease-in-out"
               suppressHydrationWarning
             >
-              <Flex align="center" gap={3}>
+              {/* <Flex align="center" gap={3}>
                 <Link href="/">
                   <Flex align="center" gap={5}>
                     <Heading as="h3" size="md" textAlign="center">
@@ -246,7 +246,7 @@ export default function Header() {
                     </Heading>
                   </Flex>
                 </Link>
-              </Flex>
+              </Flex> */}
             </Box>
 
             <Flex
@@ -256,40 +256,12 @@ export default function Header() {
               transition="transform 0.5s ease-in-out"
               suppressHydrationWarning
             >
-              {!isAuthenticated ? (
-                <Button
-                  bg={brandColors.primary}
-                  color="white"
-                  _hover={{
-                    bg: brandColors.secondary,
-                  }}
-                  onClick={handleLogin}
-                  size="xs"
-                  px={4}
-                >
-                  {t.common.login}
-                </Button>
-              ) : (
-                <>
-                  {/* <Box>
-                    <Text fontSize="sm" color="gray.300">
-                      {user?.displayName || user?.username}
-                    </Text>
-                  </Box> */}
-                  <Button
-                    bg={brandColors.primary}
-                    color="white"
-                    _hover={{
-                      bg: brandColors.secondary,
-                    }}
-                    onClick={handleLogout}
-                    size="xs"
-                    ml={4}
-                    px={4}
-                  >
-                    {t.common.logout}
-                  </Button>
-                </>
+              {isAuthenticated && (
+                <Box>
+                  <Text fontSize="sm" color="gray.300">
+                    Ready to play
+                  </Text>
+                </Box>
               )}
               <MenuRoot>
                 <MenuTrigger asChild>
@@ -300,6 +272,27 @@ export default function Header() {
                 <Portal>
                   <MenuPositioner>
                     <MenuContent minWidth="auto">
+                      {!isAuthenticated ? (
+                        <MenuItem
+                          value="login"
+                          fontSize="md"
+                          px={4}
+                          py={3}
+                          onClick={handleLogin}
+                        >
+                          {t.common.login}
+                        </MenuItem>
+                      ) : (
+                        <MenuItem
+                          value="logout"
+                          fontSize="md"
+                          px={4}
+                          py={3}
+                          onClick={handleLogout}
+                        >
+                          {t.common.logout}
+                        </MenuItem>
+                      )}
                       <Link href="/settings" color="white">
                         <MenuItem value="settings" fontSize="md" px={4} py={3}>
                           {t.navigation.settings}
@@ -309,7 +302,7 @@ export default function Header() {
                   </MenuPositioner>
                 </Portal>
               </MenuRoot>
-              <LanguageSelector />
+              {/* <LanguageSelector /> */}
             </Flex>
           </Flex>
         </Container>
