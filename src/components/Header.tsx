@@ -26,9 +26,10 @@ import { brandColors } from '@/theme'
 
 interface HeaderProps {
   addedPixelsCount?: number
+  onReset?: () => void
 }
 
-export default function Header({ addedPixelsCount = 0 }: HeaderProps) {
+export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
   const { isAuthenticated, user, isLoading, login, register, logout } = useW3PK()
   const t = useTranslation()
   const { open: isOpen, onOpen, onClose } = useDisclosure()
@@ -226,7 +227,13 @@ export default function Header({ addedPixelsCount = 0 }: HeaderProps) {
       >
         <Flex gap={2} align="center" overflow="visible" style={{ cursor: 'default' }}>
           <Box>
-            <Text fontSize="sm" color="gray.300">
+            <Text
+              fontSize="sm"
+              color="gray.300"
+              cursor={addedPixelsCount >= 2 ? 'pointer' : 'default'}
+              onClick={addedPixelsCount >= 2 ? onReset : undefined}
+              _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
+            >
               {addedPixelsCount === 0 && ''}
               {addedPixelsCount === 1 && 'Add pixel'}
               {addedPixelsCount >= 2 && 'Reset'}

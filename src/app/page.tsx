@@ -44,6 +44,12 @@ export default function Home() {
   const [originalSquares, setOriginalSquares] = useState<Square[]>([])
   const [modifiedCoordinates, setModifiedCoordinates] = useState<Set<string>>(new Set())
 
+  const handleReset = () => {
+    setSquares([...originalSquares])
+    setModifiedCoordinates(new Set())
+    setAddedPixelsCount(0)
+  }
+
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isDragging) {
       const deltaX = e.clientX - dragStart.x
@@ -338,7 +344,7 @@ export default function Home() {
 
   return (
     <>
-      <Header addedPixelsCount={addedPixelsCount} />
+      <Header addedPixelsCount={addedPixelsCount} onReset={handleReset} />
       <Box
         position="fixed"
         top={0}
