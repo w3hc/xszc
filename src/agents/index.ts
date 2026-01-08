@@ -1,3 +1,3 @@
-export { BaseAgent } from './BaseAgent';
-export { ContractMonitorAgent } from './ContractMonitorAgent';
-export * from './types';
+export { BaseAgent } from './BaseAgent'
+export { ContractMonitorAgent } from './ContractMonitorAgent'
+export * from './types'

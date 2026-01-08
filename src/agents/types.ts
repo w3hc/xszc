@@ -1,10 +1,10 @@
 export interface Agent {
-  id: string;
-  name: string;
-  type: AgentType;
-  status: AgentStatus;
-  execute(): Promise<void>;
-  stop(): Promise<void>;
+  id: string
+  name: string
+  type: AgentType
+  status: AgentStatus
+  execute(): Promise<void>
+  stop(): Promise<void>
 }
 
 export enum AgentType {
@@ -21,7 +21,7 @@ export enum AgentStatus {
 }
 
 export interface AgentConfig {
-  pollingInterval?: number;
-  maxRetries?: number;
-  onError?: (error: Error) => void;
+  pollingInterval?: number
+  maxRetries?: number
+  onError?: (error: Error) => void
 }

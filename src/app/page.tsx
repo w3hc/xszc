@@ -366,36 +366,36 @@ export default function Home() {
         cursor={isDragging ? 'grabbing' : 'none'}
         style={{ touchAction: 'none' }}
       >
-      {squares.map(square => {
-        const scaledSquareSize = SQUARE_SIZE * zoom
-        return (
-          <Box
-            key={square.id}
-            position="absolute"
-            left={`${square.gridX * scaledSquareSize + viewportOffset.x}px`}
-            top={`${-square.gridY * scaledSquareSize - scaledSquareSize + viewportOffset.y}px`}
-            w={`${scaledSquareSize}px`}
-            h={`${scaledSquareSize}px`}
-            bg={colors[square.color]}
-          />
-        )
-      })}
+        {squares.map(square => {
+          const scaledSquareSize = SQUARE_SIZE * zoom
+          return (
+            <Box
+              key={square.id}
+              position="absolute"
+              left={`${square.gridX * scaledSquareSize + viewportOffset.x}px`}
+              top={`${-square.gridY * scaledSquareSize - scaledSquareSize + viewportOffset.y}px`}
+              w={`${scaledSquareSize}px`}
+              h={`${scaledSquareSize}px`}
+              bg={colors[square.color]}
+            />
+          )
+        })}
 
-      {!isDragging && (
-        <Box
-          position="absolute"
-          left={`${cursorPosition.x * SQUARE_SIZE * zoom + viewportOffset.x}px`}
-          top={`${-cursorPosition.y * SQUARE_SIZE * zoom - SQUARE_SIZE * zoom + viewportOffset.y}px`}
-          w={`${SQUARE_SIZE * zoom}px`}
-          h={`${SQUARE_SIZE * zoom}px`}
-          border={`${SQUARE_SIZE * zoom * 0.05}px solid`}
-          borderColor={cursorColor}
-          pointerEvents="none"
-          transition="left 0.05s ease-out, top 0.05s ease-out, border-color 0.1s ease-out, width 0.1s ease-out, height 0.1s ease-out"
-          boxShadow={`0 0 10px ${cursorColor}40`}
-        />
-      )}
-    </Box>
+        {!isDragging && (
+          <Box
+            position="absolute"
+            left={`${cursorPosition.x * SQUARE_SIZE * zoom + viewportOffset.x}px`}
+            top={`${-cursorPosition.y * SQUARE_SIZE * zoom - SQUARE_SIZE * zoom + viewportOffset.y}px`}
+            w={`${SQUARE_SIZE * zoom}px`}
+            h={`${SQUARE_SIZE * zoom}px`}
+            border={`${SQUARE_SIZE * zoom * 0.05}px solid`}
+            borderColor={cursorColor}
+            pointerEvents="none"
+            transition="left 0.05s ease-out, top 0.05s ease-out, border-color 0.1s ease-out, width 0.1s ease-out, height 0.1s ease-out"
+            boxShadow={`0 0 10px ${cursorColor}40`}
+          />
+        )}
+      </Box>
     </>
   )
 }
