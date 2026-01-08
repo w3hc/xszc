@@ -54,8 +54,10 @@ export class ContractMonitorAgent extends BaseAgent {
       if (events.length > 0) {
         console.log(`Found ${events.length} pixel updates in the last 100 blocks`)
         events.forEach(event => {
-          const { x, y, color, updater } = event.args!
-          console.log(`Pixel (${x}, ${y}) updated to color ${color} by ${updater}`)
+          if ('args' in event) {
+            const { x, y, color, updater } = event.args
+            console.log(`Pixel (${x}, ${y}) updated to color ${color} by ${updater}`)
+          }
         })
       }
     } catch (error) {
