@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { getGridState, convertGridToSquares, subscribeToEvents } from '@/lib/contract'
 import GridSquare from '@/components/GridSquare'
 import { useW3PK } from '@/context/W3PK'
-import { CONTRACT_ADDRESS } from '@/config/contract'
+import { CONTRACT_ADDRESS, CHAIN_ID } from '@/config/contract'
 
 type Square = {
   id: string
@@ -119,7 +119,7 @@ export default function Home() {
       const domain = {
         name: 'XiangsuZhongchuang',
         version: '1',
-        chainId: 31337,
+        chainId: CHAIN_ID,
         verifyingContract: CONTRACT_ADDRESS,
       }
 

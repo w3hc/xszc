@@ -22,6 +22,40 @@ pnpm dev
 pnpm build
 ```
 
+## Switching Between Networks
+
+Use the Claude Code network switcher skill to easily switch between OP Mainnet and Anvil local network:
+
+```bash
+# Switch to OP Mainnet
+/switch-network mainnet
+
+# Switch to Anvil local network
+/switch-network anvil
+```
+
+The skill will automatically update:
+
+- Contract address in `src/config/contract.ts`
+- RPC URL and Chain ID
+- Relayer private key in `.env`
+
+After switching networks, restart your dev server for changes to take effect.
+
+### Manual Configuration
+
+**OP Mainnet:**
+
+- Contract: `0xFDBfA059ed1C7d32eCF2df6BB8b6C46A42a34ABa`
+- RPC: `https://mainnet.optimism.io`
+- Chain ID: `10`
+
+**Anvil (Local):**
+
+- Contract: `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- RPC: `http://127.0.0.1:8545`
+- Chain ID: `31337`
+
 ## License
 
 GPL-3.0

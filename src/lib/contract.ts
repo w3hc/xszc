@@ -125,28 +125,15 @@ export function convertGridToSquares(pixels: number[][], max: number) {
   return squares
 }
 
-// Listen for contract events
+// No-op function for backward compatibility
+// Real-time event listening removed - just poll when needed
 export function subscribeToEvents(
-  onPixelSet?: (author: string, x: number, y: number, colorIndex: number) => void,
-  onGridExpanded?: (newMax: number) => void
+  _onPixelSet?: (author: string, x: number, y: number, colorIndex: number) => void,
+  _onGridExpanded?: (newMax: number) => void
 ) {
-  const contract = getContract()
-
-  if (onPixelSet) {
-    contract.on('PixelSet', (author, x, y, colorIndex) => {
-      onPixelSet(author, Number(x), Number(y), Number(colorIndex))
-    })
-  }
-
-  if (onGridExpanded) {
-    contract.on('GridExpanded', newMax => {
-      onGridExpanded(Number(newMax))
-    })
-  }
-
-  // Return cleanup function
+  // Return no-op cleanup function
   return () => {
-    contract.removeAllListeners()
+    // No cleanup needed
   }
 }
 
@@ -171,19 +158,30 @@ export async function getContractStats() {
   }
 
   // Get total moves by querying PixelSet events
-  const filter = contract.filters.PixelSet()
-  const events = await contract.queryFilter(filter)
-  const totalMoves = events.length
+  // Note: This may fail on public RPCs that don't support eth_getLogs
+  let totalMoves = 0
+  let totalCoAuthors = 0
 
-  // Get unique co-authors from events
-  const uniqueAuthors = new Set<string>()
-  for (const event of events) {
-    // Check if event is an EventLog (has args property)
-    if ('args' in event && event.args && event.args.length > 0) {
-      uniqueAuthors.add(event.args[0] as string)
+  try {
+    const filter = contract.filters.PixelSet()
+    const events = await contract.queryFilter(filter)
+    totalMoves = events.length
+
+    // Get unique co-authors from events
+    const uniqueAuthors = new Set<string>()
+    for (const event of events) {
+      // Check if event is an EventLog (has args property)
+      if ('args' in event && event.args && event.args.length > 0) {
+        uniqueAuthors.add(event.args[0] as string)
+      }
     }
+    totalCoAuthors = uniqueAuthors.size
+  } catch (error) {
+    console.warn('Unable to query events on this RPC endpoint:', error)
+    // Fall back to using totalPixelsSet as an estimate for moves
+    totalMoves = totalPixelsSet
+    totalCoAuthors = 0
   }
-  const totalCoAuthors = uniqueAuthors.size
 
   // Get current block timestamp for calculations
   const currentBlock = await provider.getBlock('latest')
