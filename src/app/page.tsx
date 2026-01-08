@@ -3,7 +3,7 @@
 import { Box, Text } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { getGridState, convertGridToSquares, subscribeToEvents } from '@/lib/contract'
-import Header from '@/components/Header'
+import GridSquare from '@/components/GridSquare'
 
 type Square = {
   id: string
@@ -343,43 +343,39 @@ export default function Home() {
   }
 
   return (
-    <>
-      <Header addedPixelsCount={addedPixelsCount} onReset={handleReset} />
-      <Box
-        position="fixed"
-        top={0}
-        left={0}
-        right={0}
-        bottom={0}
-        bg="#000000"
-        zIndex={1}
-        onClick={handlePageClick}
-        onMouseMove={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onContextMenu={e => e.preventDefault()}
-        cursor={isDragging ? 'grabbing' : 'none'}
-        style={{ touchAction: 'none' }}
-      >
-        {squares.map(square => {
-          const scaledSquareSize = SQUARE_SIZE * zoom
-          return (
-            <Box
-              key={square.id}
-              position="absolute"
-              left={`${square.gridX * scaledSquareSize + viewportOffset.x}px`}
-              top={`${-square.gridY * scaledSquareSize - scaledSquareSize + viewportOffset.y}px`}
-              w={`${scaledSquareSize}px`}
-              h={`${scaledSquareSize}px`}
-              bg={colors[square.color]}
-            />
-          )
-        })}
+    <Box
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      bottom={0}
+      bg="#000000"
+      zIndex={1}
+      onClick={handlePageClick}
+      onMouseMove={handleMouseMove}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onContextMenu={e => e.preventDefault()}
+      cursor={isDragging ? 'grabbing' : 'none'}
+      style={{ touchAction: 'none' }}
+    >
+        {squares.map(square => (
+          <GridSquare
+            key={square.id}
+            id={square.id}
+            gridX={square.gridX}
+            gridY={square.gridY}
+            color={colors[square.color]}
+            scaledSquareSize={SQUARE_SIZE * zoom}
+            viewportOffsetX={viewportOffset.x}
+            viewportOffsetY={viewportOffset.y}
+          />
+        ))}
 
         {!isDragging && (
           <Box
@@ -395,7 +391,6 @@ export default function Home() {
             boxShadow={`0 0 10px ${cursorColor}40`}
           />
         )}
-      </Box>
-    </>
+    </Box>
   )
 }
