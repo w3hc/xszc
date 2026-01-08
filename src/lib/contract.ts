@@ -67,6 +67,23 @@ export async function setPixel(signer: ethers.Signer, x: number, y: number, colo
   return await tx.wait()
 }
 
+// Set a pixel with signature (gasless, requires relayer)
+export async function setPixelWithSignature(
+  author: string,
+  x: number,
+  y: number,
+  colorIndex: number,
+  deadline: number,
+  v: number,
+  r: string,
+  s: string
+) {
+  const provider = getProvider()
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider)
+  const tx = await contract.setPixelWithSignature(author, x, y, colorIndex, deadline, v, r, s)
+  return await tx.wait()
+}
+
 // Expand grid (requires signer)
 export async function expandGrid(signer: ethers.Signer) {
   const contract = getContractWithSigner(signer)

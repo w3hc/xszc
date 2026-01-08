@@ -87,6 +87,23 @@ interface StealthAddressResult {
   viewTag: string
 }
 
+interface SignMessageOptions {
+  mode?: string
+  tag?: string
+  signingMethod?: 'EIP191' | 'SIWE' | 'EIP712' | 'rawHash'
+  eip712Domain?: any
+  eip712Types?: any
+  eip712PrimaryType?: string
+  requireAuth?: boolean
+}
+
+interface SignatureResult {
+  signature: string
+  address: string
+  mode: string
+  tag: string
+}
+
 interface W3pkType {
   isAuthenticated: boolean
   user: W3pkUser | null
@@ -95,6 +112,7 @@ interface W3pkType {
   register: (username: string) => Promise<void>
   logout: () => void
   signMessage: (message: string) => Promise<string | null>
+  signMessageWithOptions: (message: string, options?: SignMessageOptions) => Promise<SignatureResult | null>
   deriveWallet: (mode?: string, tag?: string) => Promise<DerivedWallet>
   getAddress: (mode?: string, tag?: string) => Promise<string>
   getBackupStatus: () => Promise<BackupStatus>
@@ -131,6 +149,7 @@ const W3PK = createContext<W3pkType>({
   register: async () => {},
   logout: () => {},
   signMessage: async () => null,
+  signMessageWithOptions: async () => null,
   deriveWallet: async () => ({ address: '', privateKey: '' }),
   getAddress: async () => '',
   getBackupStatus: async () => {
@@ -454,6 +473,41 @@ export const W3pkProvider: React.FC<W3pkProviderProps> = ({ children }) => {
       w3pk.extendSession()
 
       return result.signature
+    } catch (error) {
+      if (!isUserCancelledError(error)) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to sign message with w3pk'
+
+        toaster.create({
+          title: 'Signing Failed',
+          description: errorMessage,
+          type: 'error',
+          duration: 5000,
+        })
+      }
+      return null
+    }
+  }
+
+  const signMessageWithOptions = async (message: string, options?: SignMessageOptions): Promise<SignatureResult | null> => {
+    if (!user) {
+      toaster.create({
+        title: 'Not Authenticated',
+        description: 'Please log in first.',
+        type: 'error',
+        duration: 3000,
+      })
+      return null
+    }
+
+    try {
+      await ensureAuthentication()
+      const result = await w3pk.signMessage(message, options as any)
+
+      // Extend session after successful operation for better UX
+      w3pk.extendSession()
+
+      return result
     } catch (error) {
       if (!isUserCancelledError(error)) {
         const errorMessage =
@@ -1102,6 +1156,7 @@ Thank you for being a trusted guardian!
         register,
         logout,
         signMessage,
+        signMessageWithOptions,
         deriveWallet,
         getAddress,
         getBackupStatus,

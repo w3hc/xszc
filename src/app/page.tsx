@@ -4,6 +4,8 @@ import { Box, Text } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { getGridState, convertGridToSquares, subscribeToEvents } from '@/lib/contract'
 import GridSquare from '@/components/GridSquare'
+import { useW3PK } from '@/context/W3PK'
+import { CONTRACT_ADDRESS } from '@/config/contract'
 
 type Square = {
   id: string
@@ -24,6 +26,7 @@ const colors = {
 const colorCycle: Array<Square['color']> = ['purple', 'blue', 'white', 'black']
 
 export default function Home() {
+  const { getAddress, signMessageWithOptions } = useW3PK()
   const [squares, setSquares] = useState<Square[]>([])
   const [maxSize, setMaxSize] = useState(8)
   const [isLoading, setIsLoading] = useState(true)
@@ -43,11 +46,163 @@ export default function Home() {
   const [addedPixelsCount, setAddedPixelsCount] = useState(0)
   const [originalSquares, setOriginalSquares] = useState<Square[]>([])
   const [modifiedCoordinates, setModifiedCoordinates] = useState<Set<string>>(new Set())
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleReset = () => {
     setSquares([...originalSquares])
     setModifiedCoordinates(new Set())
     setAddedPixelsCount(0)
+  }
+
+  const handleAddPixel = async () => {
+    if (isSubmitting || modifiedCoordinates.size === 0) return
+
+    try {
+      setIsSubmitting(true)
+
+      // Get the user's address (STANDARD + MAIN)
+      const authorAddress = await getAddress('STANDARD', 'MAIN')
+
+      // Get the modified pixel details
+      const modifiedCoordinate = Array.from(modifiedCoordinates)[0]
+      // Parse coordinates - must handle negative numbers correctly
+      // Format is "x-y" where x and y can be negative (e.g., "-3--3")
+      const parts = modifiedCoordinate.match(/-?\d+/g)
+      if (!parts || parts.length !== 2) {
+        throw new Error(`Invalid coordinate format: ${modifiedCoordinate}`)
+      }
+      const [x, y] = parts.map(Number)
+
+      console.log('[AddPixel] Modified coordinate string:', modifiedCoordinate)
+      console.log('[AddPixel] Parsed coordinates:', { x, y })
+
+      // Find the square to get the color
+      const modifiedSquare = squares.find(s => s.id === modifiedCoordinate)
+      console.log('[AddPixel] Modified square:', modifiedSquare)
+
+      // Verify the square's gridX and gridY match the parsed coordinates
+      if (modifiedSquare) {
+        console.log('[AddPixel] Coordinate verification:', {
+          parsedX: x,
+          squareGridX: modifiedSquare.gridX,
+          xMatch: x === modifiedSquare.gridX,
+          parsedY: y,
+          squareGridY: modifiedSquare.gridY,
+          yMatch: y === modifiedSquare.gridY,
+        })
+      }
+
+      // Determine the color index
+      let colorIndex: number
+      if (!modifiedSquare) {
+        // Square was removed (set to black)
+        colorIndex = 0
+      } else {
+        // Map color name to index
+        const colorMap: Record<string, number> = {
+          black: 0,
+          purple: 1,
+          blue: 2,
+          white: 3,
+        }
+        colorIndex = colorMap[modifiedSquare.color] || 0
+      }
+
+      // Set deadline far in the future (10 years from now) to avoid timing issues
+      // The signature is created and used immediately, so we don't need tight deadline constraints
+      const deadline = Math.floor(Date.now() / 1000) + (10 * 365 * 24 * 3600)
+
+      console.log('[Frontend] Deadline set to:', deadline)
+
+      // Prepare EIP-712 typed data
+      const domain = {
+        name: 'XiangsuZhongchuang',
+        version: '1',
+        chainId: 31337,
+        verifyingContract: CONTRACT_ADDRESS,
+      }
+
+      const types = {
+        SetPixel: [
+          { name: 'author', type: 'address' },
+          { name: 'x', type: 'int256' },
+          { name: 'y', type: 'int256' },
+          { name: 'colorIndex', type: 'uint8' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      }
+
+      const message = {
+        author: authorAddress,
+        x: x.toString(),
+        y: y.toString(),
+        colorIndex: colorIndex.toString(),
+        deadline: deadline.toString(),
+      }
+
+      // Sign the EIP-712 message using W3PK
+      console.log('[Frontend] Signing message:', message)
+      console.log('[Frontend] With domain:', domain)
+      console.log('[Frontend] And types:', types)
+
+      const signResult = await signMessageWithOptions(JSON.stringify(message), {
+        mode: 'STANDARD',
+        tag: 'MAIN',
+        signingMethod: 'EIP712',
+        eip712Domain: domain,
+        eip712Types: types,
+        eip712PrimaryType: 'SetPixel',
+      })
+
+      console.log('[Frontend] Sign result:', signResult)
+
+      if (!signResult) {
+        throw new Error('Failed to sign message')
+      }
+
+      // Call the API to relay the transaction with the user's signature
+      const requestBody = {
+        author: authorAddress,
+        x,
+        y,
+        colorIndex,
+        deadline,
+        signature: signResult.signature,
+      }
+      console.log('[Frontend] Sending to API:', requestBody)
+
+      const response = await fetch('/api/relay-signature', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to relay transaction')
+      }
+
+      await response.json()
+
+      // Reset the modified coordinates after successful submission
+      setModifiedCoordinates(new Set())
+      setAddedPixelsCount(0)
+
+      // Reload the grid state
+      const { max, pixels } = await getGridState()
+      setMaxSize(max)
+      const contractSquares = convertGridToSquares(pixels, max)
+      setSquares(contractSquares)
+      setOriginalSquares(contractSquares)
+
+    } catch (err) {
+      console.error('Failed to add pixel:', err)
+      alert(`Failed to add pixel: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -87,10 +242,23 @@ export default function Home() {
       return
     }
 
+    // Coordinate System:
+    // - Screen space: (0,0) at top-left, x increases right, y increases down
+    // - Grid space: (0,0) at center, x increases right, y increases UP (inverted)
+    // - Transform: gridX = floor((screenX - offsetX) / size), gridY = -floor((screenY - offsetY) / size) - 1
     const scaledSquareSize = SQUARE_SIZE * zoom
     const gridX = Math.floor((e.clientX - viewportOffset.x) / scaledSquareSize)
     const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
     const gridId = `${gridX}-${gridY}`
+
+    console.log('[Click] Screen position:', { clientX: e.clientX, clientY: e.clientY })
+    console.log('[Click] Viewport offset:', viewportOffset)
+    console.log('[Click] Scaled square size:', scaledSquareSize)
+    console.log('[Click] Calculated grid coords:', { gridX, gridY, gridId })
+    console.log('[Click] Reverse calculation - expected screen position:', {
+      left: gridX * scaledSquareSize + viewportOffset.x,
+      top: -gridY * scaledSquareSize - scaledSquareSize + viewportOffset.y,
+    })
 
     const clickedSquareIndex = squares.findIndex(square => square.id === gridId)
     const originalSquare = originalSquares.find(square => square.id === gridId)
@@ -360,12 +528,12 @@ export default function Home() {
         <Text
           fontSize="sm"
           color="gray.300"
-          cursor={addedPixelsCount >= 2 ? 'pointer' : 'default'}
-          onClick={addedPixelsCount >= 2 ? handleReset : undefined}
-          _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
+          cursor={addedPixelsCount >= 1 ? 'pointer' : 'default'}
+          onClick={addedPixelsCount === 1 ? handleAddPixel : addedPixelsCount >= 2 ? handleReset : undefined}
+          _hover={addedPixelsCount >= 1 ? { color: 'white' } : undefined}
         >
           {addedPixelsCount === 0 && ''}
-          {addedPixelsCount === 1 && 'Add pixel'}
+          {addedPixelsCount === 1 && (isSubmitting ? 'Adding...' : 'Add pixel')}
           {addedPixelsCount >= 2 && 'Reset'}
         </Text>
       </Box>
