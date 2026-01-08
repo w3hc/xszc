@@ -1,7 +1,7 @@
 // Contract configuration for XiangsuZhongchuang
-export const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-export const RPC_URL = 'http://127.0.0.1:8545'
-export const CHAIN_ID = 31337 // Anvil local chain
+export const CONTRACT_ADDRESS = '0xFDBfA059ed1C7d32eCF2df6BB8b6C46A42a34ABa'
+export const RPC_URL = 'https://mainnet.optimism.io'
+export const CHAIN_ID = 10 // OP Mainnet
 
 // Contract ABI - only including the functions we need
 export const CONTRACT_ABI = [
