@@ -1,11 +1,11 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Settings | w3pk',
+  title: 'Settings | 像素众创',
   description: 'Manage your accounts, backups, and recovery options for your w3pk wallet.',
 
   openGraph: {
-    title: 'Settings | w3pk',
+    title: 'Settings | 像素众创',
     description: 'Manage your accounts, backups, and recovery options for your w3pk wallet.',
     siteName: '像素众创',
     images: [

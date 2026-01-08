@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://w3pk.w3hc.org'),
+  metadataBase: new URL('https://pixel.w3hc.org'),
 
   title: '像素众创',
   description: 'Collective Pixel Artwork',

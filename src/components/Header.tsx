@@ -2,9 +2,7 @@
 
 import {
   Box,
-  Container,
   Flex,
-  Heading,
   Text,
   useDisclosure,
   VStack,
@@ -19,7 +17,6 @@ import { MenuRoot, MenuTrigger, MenuPositioner, MenuContent, MenuItem } from '@/
 import { Dialog, Portal } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { HiMenu } from 'react-icons/hi'
-import LanguageSelector from './LanguageSelector'
 import Spinner from './Spinner'
 import { useTranslation } from '@/hooks/useTranslation'
 import { useW3PK } from '@/context/W3PK'
@@ -27,28 +24,18 @@ import { useState, useEffect } from 'react'
 import { toaster } from '@/components/ui/toaster'
 import { brandColors } from '@/theme'
 
-export default function Header() {
+interface HeaderProps {
+  addedPixelsCount?: number
+  onReset?: () => void
+}
+
+export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
   const { isAuthenticated, user, isLoading, login, register, logout } = useW3PK()
   const t = useTranslation()
   const { open: isOpen, onOpen, onClose } = useDisclosure()
   const [username, setUsername] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
   const [isUsernameInvalid, setIsUsernameInvalid] = useState(false)
-
-  const [scrollPosition, setScrollPosition] = useState(0)
-
-  const shouldSlide = scrollPosition > 0
-  const leftSlideValue = shouldSlide ? 2000 : 0
-  const rightSlideValue = shouldSlide ? 2000 : 0
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrollPosition(window.scrollY)
-    }
-
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   const validateUsername = (input: string): boolean => {
     if (!input.trim()) {
@@ -224,95 +211,80 @@ export default function Header() {
 
   return (
     <>
-      <Box as="header" py={4} position="fixed" w="100%" top={0} zIndex={10} overflow="visible">
-        <Container maxW="100%" px={{ base: 4, md: 6 }} overflow="visible">
-          <Flex
-            as="nav"
-            aria-label="Main navigation"
-            justify="space-between"
-            align="center"
-            overflow="visible"
-          >
-            <Box
-              transform={`translateX(-${leftSlideValue}px)`}
-              transition="transform 0.5s ease-in-out"
-              suppressHydrationWarning
+      <Box
+        as="header"
+        py={4}
+        px={4}
+        position="fixed"
+        top={0}
+        right={0}
+        zIndex={1000}
+        overflow="visible"
+        pointerEvents="auto"
+        bg="rgba(0, 0, 0, 0.8)"
+        backdropFilter="blur(10px)"
+        style={{ cursor: 'default' }}
+      >
+        <Flex gap={2} align="center" overflow="visible" style={{ cursor: 'default' }}>
+          <Box>
+            <Text
+              fontSize="sm"
+              color="gray.300"
+              cursor={addedPixelsCount >= 2 ? 'pointer' : 'default'}
+              onClick={addedPixelsCount >= 2 ? onReset : undefined}
+              _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
             >
-              <Flex align="center" gap={3}>
-                <Link href="/">
-                  <Flex align="center" gap={5}>
-                    <Heading as="h3" size="md" textAlign="center">
-                      像素众创
-                    </Heading>
-                  </Flex>
-                </Link>
-              </Flex>
-            </Box>
+              {addedPixelsCount === 0 && ''}
+              {addedPixelsCount === 1 && 'Add pixel'}
+              {addedPixelsCount >= 2 && 'Reset'}
+            </Text>
+          </Box>
 
-            <Flex
-              gap={2}
-              align="center"
-              transform={`translateX(${rightSlideValue}px)`}
-              transition="transform 0.5s ease-in-out"
-              suppressHydrationWarning
-            >
-              {!isAuthenticated ? (
-                <Button
-                  bg={brandColors.primary}
-                  color="white"
-                  _hover={{
-                    bg: brandColors.secondary,
-                  }}
-                  onClick={handleLogin}
-                  size="xs"
-                  px={4}
-                >
-                  {t.common.login}
-                </Button>
-              ) : (
-                <>
-                  {/* <Box>
-                    <Text fontSize="sm" color="gray.300">
-                      {user?.displayName || user?.username}
-                    </Text>
-                  </Box> */}
-                  <Button
-                    bg={brandColors.primary}
-                    color="white"
-                    _hover={{
-                      bg: brandColors.secondary,
-                    }}
-                    onClick={handleLogout}
-                    size="xs"
-                    ml={4}
-                    px={4}
-                  >
-                    {t.common.logout}
-                  </Button>
-                </>
-              )}
-              <MenuRoot>
-                <MenuTrigger asChild>
-                  <IconButton aria-label="Options" variant="ghost" size="sm">
-                    <HiMenu />
-                  </IconButton>
-                </MenuTrigger>
-                <Portal>
-                  <MenuPositioner>
-                    <MenuContent minWidth="auto">
-                      <Link href="/settings" color="white">
-                        <MenuItem value="settings" fontSize="md" px={4} py={3}>
-                          {t.navigation.settings}
-                        </MenuItem>
-                      </Link>
-                    </MenuContent>
-                  </MenuPositioner>
-                </Portal>
-              </MenuRoot>
-              <LanguageSelector />
-            </Flex>
-          </Flex>
-        </Container>
+          <MenuRoot>
+            <MenuTrigger asChild>
+              <IconButton aria-label="Options" variant="ghost" size="sm">
+                <HiMenu />
+              </IconButton>
+            </MenuTrigger>
+            <Portal>
+              <MenuPositioner>
+                <MenuContent minWidth="auto">
+                  <Link href="/" color="white" prefetch={true}>
+                    <MenuItem value="home" fontSize="md" px={4} py={3}>
+                      Home
+                    </MenuItem>
+                  </Link>
+                  {!isAuthenticated && (
+                    <MenuItem value="login" fontSize="md" px={4} py={3} onClick={handleLogin}>
+                      {t.common.login}
+                    </MenuItem>
+                  )}
+                  <Link href="/rules" color="white" prefetch={true}>
+                    <MenuItem value="rules" fontSize="md" px={4} py={3}>
+                      Rules
+                    </MenuItem>
+                  </Link>
+                  <Link href="/dao" color="white" prefetch={true}>
+                    <MenuItem value="dao" fontSize="md" px={4} py={3}>
+                      DAO
+                    </MenuItem>
+                  </Link>
+                  <Link href="/settings" color="white" prefetch={true}>
+                    <MenuItem value="settings" fontSize="md" px={4} py={3}>
+                      {t.navigation.settings}
+                    </MenuItem>
+                  </Link>
+                  {isAuthenticated && (
+                    <MenuItem value="logout" fontSize="md" px={4} py={3} onClick={handleLogout}>
+                      {t.common.logout}
+                    </MenuItem>
+                  )}
+                </MenuContent>
+              </MenuPositioner>
+            </Portal>
+          </MenuRoot>
+          {/* <LanguageSelector /> */}
+        </Flex>
       </Box>
 
       {/* Registration Modal */}
