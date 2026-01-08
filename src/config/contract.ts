@@ -18,6 +18,7 @@ export const CONTRACT_ABI = [
 
   // Write functions
   'function setPixel(int256 x, int256 y, uint8 colorIndex)',
+  'function setPixelWithSignature(address author, int256 x, int256 y, uint8 colorIndex, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
   'function expandGrid()',
 
   // Events

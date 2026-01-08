@@ -16,6 +16,7 @@ import { Field } from '@/components/ui/field'
 import { MenuRoot, MenuTrigger, MenuPositioner, MenuContent, MenuItem } from '@/components/ui/menu'
 import { Dialog, Portal } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { HiMenu } from 'react-icons/hi'
 import Spinner from './Spinner'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -32,6 +33,7 @@ interface HeaderProps {
 export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
   const { isAuthenticated, user, isLoading, login, register, logout } = useW3PK()
   const t = useTranslation()
+  const pathname = usePathname()
   const { open: isOpen, onOpen, onClose } = useDisclosure()
   const [username, setUsername] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
@@ -249,11 +251,13 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
             <Portal>
               <MenuPositioner>
                 <MenuContent minWidth="auto">
-                  <Link href="/" color="white" prefetch={true}>
-                    <MenuItem value="home" fontSize="md" px={4} py={3}>
-                      Home
-                    </MenuItem>
-                  </Link>
+                  {pathname !== '/' && (
+                    <Link href="/" color="white" prefetch={true}>
+                      <MenuItem value="home" fontSize="md" px={4} py={3}>
+                        Home
+                      </MenuItem>
+                    </Link>
+                  )}
                   {!isAuthenticated && (
                     <MenuItem value="login" fontSize="md" px={4} py={3} onClick={handleLogin}>
                       {t.common.login}
@@ -264,11 +268,16 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
                       Rules
                     </MenuItem>
                   </Link>
-                  <Link href="/dao" color="white" prefetch={true}>
+                  <Link href="/stats" color="white" prefetch={true}>
+                    <MenuItem value="stats" fontSize="md" px={4} py={3}>
+                      Stats
+                    </MenuItem>
+                  </Link>
+                  {/* <Link href="/dao" color="white" prefetch={true}>
                     <MenuItem value="dao" fontSize="md" px={4} py={3}>
                       DAO
                     </MenuItem>
-                  </Link>
+                  </Link> */}
                   <Link href="/settings" color="white" prefetch={true}>
                     <MenuItem value="settings" fontSize="md" px={4} py={3}>
                       {t.navigation.settings}

@@ -1,66 +1,29 @@
-## Foundry
+# XSZC Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Deploy to anvil
 
-Foundry consists of:
+```bash
+forge script script/DeployXiangsuZhongchuang.s.sol:DeployXiangsuZhongchuang --rpc-url http://127.0.0.1:8545 --broadcast
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+# or 
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+forge script script/DeployXiangsuZhongchuang.s.sol:DeployXiangsuZhongchuang --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
-### Test
+## Add 1 pixel
 
-```shell
-$ forge test
+- 0 = black (#000000)
+- 1 = purple (#8c1c84)
+- 2 = blue (#45a2f8)
+- 3 = white (#FFFFFF)
+
+```bash
+cast send <CONTRACT_ADDRESS> "setPixel(int256,int256,uint8)" 0 0 2 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://127.0.0.1:8545
 ```
 
-### Format
+## Forward 24 hours
 
-```shell
-$ forge fmt
+```bash
+cast rpc evm_increaseTime 86400
 ```
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
