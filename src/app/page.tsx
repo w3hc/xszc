@@ -47,6 +47,7 @@ export default function Home() {
   const [originalSquares, setOriginalSquares] = useState<Square[]>([])
   const [modifiedCoordinates, setModifiedCoordinates] = useState<Set<string>>(new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [lastClickWasOffGrid, setLastClickWasOffGrid] = useState(false)
 
   const handleReset = () => {
     setSquares([...originalSquares])
@@ -249,6 +250,11 @@ export default function Home() {
     const scaledSquareSize = SQUARE_SIZE * zoom
     const gridX = Math.floor((e.clientX - viewportOffset.x) / scaledSquareSize)
     const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
+
+    // Check if click is within grid bounds
+    const isWithinBounds = gridX >= -maxSize && gridX < maxSize && gridY >= -maxSize && gridY < maxSize
+    setLastClickWasOffGrid(!isWithinBounds)
+
     const gridId = `${gridX}-${gridY}`
 
     console.log('[Click] Screen position:', { clientX: e.clientX, clientY: e.clientY })
@@ -528,12 +534,13 @@ export default function Home() {
         <Text
           fontSize="sm"
           color="gray.300"
-          cursor={addedPixelsCount >= 1 ? 'pointer' : 'default'}
-          onClick={addedPixelsCount === 1 ? handleAddPixel : addedPixelsCount >= 2 ? handleReset : undefined}
-          _hover={addedPixelsCount >= 1 ? { color: 'white' } : undefined}
+          cursor={addedPixelsCount === 1 && !lastClickWasOffGrid ? 'pointer' : addedPixelsCount >= 2 ? 'pointer' : 'default'}
+          onClick={addedPixelsCount === 1 && !lastClickWasOffGrid ? handleAddPixel : addedPixelsCount >= 2 ? handleReset : undefined}
+          _hover={addedPixelsCount === 1 && !lastClickWasOffGrid ? { color: 'white' } : addedPixelsCount >= 2 ? { color: 'white' } : undefined}
         >
           {addedPixelsCount === 0 && ''}
-          {addedPixelsCount === 1 && (isSubmitting ? 'Adding...' : 'Add pixel')}
+          {addedPixelsCount === 1 && lastClickWasOffGrid && 'Off the grid'}
+          {addedPixelsCount === 1 && !lastClickWasOffGrid && (isSubmitting ? 'Adding...' : 'Add pixel')}
           {addedPixelsCount >= 2 && 'Reset'}
         </Text>
       </Box>
