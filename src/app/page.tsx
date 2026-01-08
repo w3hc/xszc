@@ -111,7 +111,7 @@ export default function Home() {
 
       // Set deadline far in the future (10 years from now) to avoid timing issues
       // The signature is created and used immediately, so we don't need tight deadline constraints
-      const deadline = Math.floor(Date.now() / 1000) + (10 * 365 * 24 * 3600)
+      const deadline = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600
 
       console.log('[Frontend] Deadline set to:', deadline)
 
@@ -197,7 +197,6 @@ export default function Home() {
       const contractSquares = convertGridToSquares(pixels, max)
       setSquares(contractSquares)
       setOriginalSquares(contractSquares)
-
     } catch (err) {
       console.error('Failed to add pixel:', err)
       alert(`Failed to add pixel: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -252,7 +251,8 @@ export default function Home() {
     const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
 
     // Check if click is within grid bounds
-    const isWithinBounds = gridX >= -maxSize && gridX < maxSize && gridY >= -maxSize && gridY < maxSize
+    const isWithinBounds =
+      gridX >= -maxSize && gridX < maxSize && gridY >= -maxSize && gridY < maxSize
     setLastClickWasOffGrid(!isWithinBounds)
 
     const gridId = `${gridX}-${gridY}`
@@ -531,16 +531,66 @@ export default function Home() {
         px={3}
         borderRadius="md"
       >
+        <style>
+          {`
+            @keyframes shimmer {
+              100% {
+                background-position: -200% center;
+              }
+              0% {
+                background-position: 200% center;
+              }
+            }
+            .shimmer-text {
+              background: linear-gradient(
+                90deg,
+                #8c1c84 0%,
+                #45a2f8 25%,
+                #ffffff 50%,
+                #45a2f8 75%,
+                #8c1c84 100%
+              );
+              background-size: 200% auto;
+              -webkit-background-clip: text;
+              background-clip: text;
+              -webkit-text-fill-color: transparent;
+              animation: shimmer 3s linear infinite;
+            }
+          `}
+        </style>
         <Text
           fontSize="sm"
           color="gray.300"
-          cursor={addedPixelsCount === 1 && !lastClickWasOffGrid ? 'pointer' : addedPixelsCount >= 2 ? 'pointer' : 'default'}
-          onClick={addedPixelsCount === 1 && !lastClickWasOffGrid ? handleAddPixel : addedPixelsCount >= 2 ? handleReset : undefined}
-          _hover={addedPixelsCount === 1 && !lastClickWasOffGrid ? { color: 'white' } : addedPixelsCount >= 2 ? { color: 'white' } : undefined}
+          cursor={
+            addedPixelsCount === 1 && !lastClickWasOffGrid
+              ? 'pointer'
+              : addedPixelsCount >= 2
+                ? 'pointer'
+                : 'default'
+          }
+          onClick={
+            addedPixelsCount === 1 && !lastClickWasOffGrid
+              ? handleAddPixel
+              : addedPixelsCount >= 2
+                ? handleReset
+                : undefined
+          }
+          _hover={
+            addedPixelsCount === 1 && !lastClickWasOffGrid
+              ? { color: 'white' }
+              : addedPixelsCount >= 2
+                ? { color: 'white' }
+                : undefined
+          }
+          className={
+            addedPixelsCount === 1 && !lastClickWasOffGrid && !isSubmitting ? 'shimmer-text' : ''
+          }
         >
           {addedPixelsCount === 0 && ''}
           {addedPixelsCount === 1 && lastClickWasOffGrid && 'Off the grid'}
-          {addedPixelsCount === 1 && !lastClickWasOffGrid && (isSubmitting ? 'Adding...' : 'Add pixel')}
+          {addedPixelsCount === 1 &&
+            !lastClickWasOffGrid &&
+            (isSubmitting ? 'Adding...' : 'Add pixel')}
           {addedPixelsCount >= 2 && 'Reset'}
         </Text>
       </Box>
