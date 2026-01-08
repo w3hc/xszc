@@ -3,6 +3,7 @@
 import { Box, Text } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { getGridState, convertGridToSquares, subscribeToEvents } from '@/lib/contract'
+import Header from '@/components/Header'
 
 type Square = {
   id: string
@@ -39,6 +40,9 @@ export default function Home() {
   const [zoom, setZoom] = useState(1)
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null)
+  const [addedPixelsCount, setAddedPixelsCount] = useState(0)
+  const [originalSquares, setOriginalSquares] = useState<Square[]>([])
+  const [modifiedCoordinates, setModifiedCoordinates] = useState<Set<string>>(new Set())
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isDragging) {
@@ -83,6 +87,7 @@ export default function Home() {
     const gridId = `${gridX}-${gridY}`
 
     const clickedSquareIndex = squares.findIndex(square => square.id === gridId)
+    const originalSquare = originalSquares.find(square => square.id === gridId)
 
     if (clickedSquareIndex !== -1) {
       const clickedSquare = squares[clickedSquareIndex]
@@ -90,14 +95,52 @@ export default function Home() {
       const nextColor = colorCycle[(currentColorIndex + 1) % colorCycle.length]
 
       const updatedSquares = [...squares]
-      updatedSquares[clickedSquareIndex] = { ...clickedSquare, color: nextColor }
+
+      // If next color is black, remove the square
+      if (nextColor === 'black') {
+        updatedSquares.splice(clickedSquareIndex, 1)
+      } else {
+        updatedSquares[clickedSquareIndex] = { ...clickedSquare, color: nextColor }
+      }
+
       setSquares(updatedSquares)
+
+      // Check if this coordinate has returned to its original state
+      const isBackToOriginal =
+        (nextColor === 'black' && !originalSquare) ||
+        (originalSquare && nextColor === originalSquare.color)
+
+      setModifiedCoordinates(prev => {
+        const newSet = new Set(prev)
+        if (isBackToOriginal) {
+          newSet.delete(gridId)
+        } else {
+          newSet.add(gridId)
+        }
+        setAddedPixelsCount(newSet.size)
+        return newSet
+      })
 
       const nextColorIndex = (currentColorIndex + 2) % colorCycle.length
       const colorAfterNext = colorCycle[nextColorIndex]
       setCursorColor(colors[colorAfterNext])
     } else {
       setSquares([...squares, { id: gridId, gridX, gridY, color: 'purple' }])
+
+      // Check if this coordinate exists in original state
+      const isBackToOriginal = originalSquare && originalSquare.color === 'purple'
+
+      setModifiedCoordinates(prev => {
+        const newSet = new Set(prev)
+        if (isBackToOriginal) {
+          newSet.delete(gridId)
+        } else {
+          newSet.add(gridId)
+        }
+        setAddedPixelsCount(newSet.size)
+        return newSet
+      })
+
       setCursorColor(colors.blue)
     }
   }
@@ -205,6 +248,7 @@ export default function Home() {
         setMaxSize(max)
         const contractSquares = convertGridToSquares(pixels, max)
         setSquares(contractSquares)
+        setOriginalSquares(contractSquares)
       } catch (err) {
         console.error('Failed to load grid state:', err)
         setError('Failed to load grid state from contract')
@@ -293,26 +337,29 @@ export default function Home() {
   }
 
   return (
-    <Box
-      position="fixed"
-      top={0}
-      left={0}
-      right={0}
-      bottom={0}
-      bg="#000000"
-      onClick={handlePageClick}
-      onMouseMove={handleMouseMove}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onContextMenu={e => e.preventDefault()}
-      cursor={isDragging ? 'grabbing' : 'none'}
-      style={{ touchAction: 'none' }}
-    >
+    <>
+      <Header addedPixelsCount={addedPixelsCount} />
+      <Box
+        position="fixed"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        bg="#000000"
+        zIndex={1}
+        onClick={handlePageClick}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={e => e.preventDefault()}
+        cursor={isDragging ? 'grabbing' : 'none'}
+        style={{ touchAction: 'none' }}
+      >
       {squares.map(square => {
         const scaledSquareSize = SQUARE_SIZE * zoom
         return (
@@ -343,5 +390,6 @@ export default function Home() {
         />
       )}
     </Box>
+    </>
   )
 }
