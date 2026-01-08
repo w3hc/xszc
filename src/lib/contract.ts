@@ -149,3 +149,51 @@ export function subscribeToEvents(
     contract.removeAllListeners()
   }
 }
+
+// Get stats from the contract
+export async function getContractStats() {
+  const contract = getContract()
+  const provider = getProvider()
+
+  // Get current grid size
+  const maxValue = await contract.max()
+  const max = Number(maxValue)
+
+  // Get all pixels to count total non-black pixels
+  const pixels = (await contract.getAllPixels()) as number[][]
+  let totalPixelsSet = 0
+  for (const row of pixels) {
+    for (const colorIndex of row) {
+      if (colorIndex !== 0) {
+        totalPixelsSet++
+      }
+    }
+  }
+
+  // Get total moves by querying PixelSet events
+  const filter = contract.filters.PixelSet()
+  const events = await contract.queryFilter(filter)
+  const totalMoves = events.length
+
+  // Get unique co-authors from events
+  const uniqueAuthors = new Set<string>()
+  for (const event of events) {
+    // Check if event is an EventLog (has args property)
+    if ('args' in event && event.args && event.args.length > 0) {
+      uniqueAuthors.add(event.args[0] as string)
+    }
+  }
+  const totalCoAuthors = uniqueAuthors.size
+
+  // Get current block timestamp for calculations
+  const currentBlock = await provider.getBlock('latest')
+  const currentTimestamp = currentBlock?.timestamp || 0
+
+  return {
+    gridSize: max,
+    totalPixelsSet,
+    totalMoves,
+    totalCoAuthors,
+    currentTimestamp,
+  }
+}

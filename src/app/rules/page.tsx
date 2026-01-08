@@ -90,7 +90,7 @@ export default function RulesPage() {
 
       <Box pt={6} borderTop="1px" borderColor="gray.700">
         <Text fontSize="sm" color="gray.500" textAlign="center">
-          Smart contract:{' '}
+          Solidity contract:{' '}
           <Link
             href="https://github.com/w3hc/xszc/blob/main/contracts/src/XiangsuZhongchuang.sol"
             color="#45a2f8"
