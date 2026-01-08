@@ -343,27 +343,54 @@ export default function Home() {
   }
 
   return (
-    <Box
-      position="fixed"
-      top={0}
-      left={0}
-      right={0}
-      bottom={0}
-      bg="#000000"
-      zIndex={1}
-      onClick={handlePageClick}
-      onMouseMove={handleMouseMove}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onContextMenu={e => e.preventDefault()}
-      cursor={isDragging ? 'grabbing' : 'none'}
-      style={{ touchAction: 'none' }}
-    >
+    <>
+      {/* Pixel count overlay */}
+      <Box
+        position="fixed"
+        top={4}
+        left={4}
+        zIndex={1000}
+        pointerEvents="auto"
+        bg="rgba(0, 0, 0, 0.8)"
+        backdropFilter="blur(10px)"
+        py={2}
+        px={3}
+        borderRadius="md"
+      >
+        <Text
+          fontSize="sm"
+          color="gray.300"
+          cursor={addedPixelsCount >= 2 ? 'pointer' : 'default'}
+          onClick={addedPixelsCount >= 2 ? handleReset : undefined}
+          _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
+        >
+          {addedPixelsCount === 0 && ''}
+          {addedPixelsCount === 1 && 'Add pixel'}
+          {addedPixelsCount >= 2 && 'Reset'}
+        </Text>
+      </Box>
+
+      <Box
+        position="fixed"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        bg="#000000"
+        zIndex={1}
+        onClick={handlePageClick}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={e => e.preventDefault()}
+        cursor={isDragging ? 'grabbing' : 'none'}
+        style={{ touchAction: 'none' }}
+      >
         {squares.map(square => (
           <GridSquare
             key={square.id}
@@ -391,6 +418,7 @@ export default function Home() {
             boxShadow={`0 0 10px ${cursorColor}40`}
           />
         )}
-    </Box>
+      </Box>
+    </>
   )
 }
