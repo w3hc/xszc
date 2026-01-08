@@ -224,61 +224,43 @@ export default function Header({ addedPixelsCount = 0 }: HeaderProps) {
         backdropFilter="blur(10px)"
         style={{ cursor: 'default' }}
       >
-        <Flex
-          gap={2}
-          align="center"
-          overflow="visible"
-          style={{ cursor: 'default' }}
-        >
-              {isAuthenticated && (
-                <Box>
-                  <Text fontSize="sm" color="gray.300">
-                    {addedPixelsCount === 0 && ''}
-                    {addedPixelsCount === 1 && 'Add pixel'}
-                    {addedPixelsCount >= 2 && 'Reset'}
-                  </Text>
-                </Box>
-              )}
-              <MenuRoot>
-                <MenuTrigger asChild>
-                  <IconButton aria-label="Options" variant="ghost" size="sm">
-                    <HiMenu />
-                  </IconButton>
-                </MenuTrigger>
-                <Portal>
-                  <MenuPositioner>
-                    <MenuContent minWidth="auto">
-                      {!isAuthenticated ? (
-                        <MenuItem
-                          value="login"
-                          fontSize="md"
-                          px={4}
-                          py={3}
-                          onClick={handleLogin}
-                        >
-                          {t.common.login}
-                        </MenuItem>
-                      ) : (
-                        <MenuItem
-                          value="logout"
-                          fontSize="md"
-                          px={4}
-                          py={3}
-                          onClick={handleLogout}
-                        >
-                          {t.common.logout}
-                        </MenuItem>
-                      )}
-                      <Link href="/settings" color="white">
-                        <MenuItem value="settings" fontSize="md" px={4} py={3}>
-                          {t.navigation.settings}
-                        </MenuItem>
-                      </Link>
-                    </MenuContent>
-                  </MenuPositioner>
-                </Portal>
-              </MenuRoot>
-              {/* <LanguageSelector /> */}
+        <Flex gap={2} align="center" overflow="visible" style={{ cursor: 'default' }}>
+          <Box>
+            <Text fontSize="sm" color="gray.300">
+              {addedPixelsCount === 0 && ''}
+              {addedPixelsCount === 1 && 'Add pixel'}
+              {addedPixelsCount >= 2 && 'Reset'}
+            </Text>
+          </Box>
+
+          <MenuRoot>
+            <MenuTrigger asChild>
+              <IconButton aria-label="Options" variant="ghost" size="sm">
+                <HiMenu />
+              </IconButton>
+            </MenuTrigger>
+            <Portal>
+              <MenuPositioner>
+                <MenuContent minWidth="auto">
+                  {!isAuthenticated ? (
+                    <MenuItem value="login" fontSize="md" px={4} py={3} onClick={handleLogin}>
+                      {t.common.login}
+                    </MenuItem>
+                  ) : (
+                    <MenuItem value="logout" fontSize="md" px={4} py={3} onClick={handleLogout}>
+                      {t.common.logout}
+                    </MenuItem>
+                  )}
+                  <Link href="/settings" color="white">
+                    <MenuItem value="settings" fontSize="md" px={4} py={3}>
+                      {t.navigation.settings}
+                    </MenuItem>
+                  </Link>
+                </MenuContent>
+              </MenuPositioner>
+            </Portal>
+          </MenuRoot>
+          {/* <LanguageSelector /> */}
         </Flex>
       </Box>
 
