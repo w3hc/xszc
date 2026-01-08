@@ -264,11 +264,11 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
                       Rules
                     </MenuItem>
                   </Link>
-                  <Link href="/dao" color="white" prefetch={true}>
+                  {/* <Link href="/dao" color="white" prefetch={true}>
                     <MenuItem value="dao" fontSize="md" px={4} py={3}>
                       DAO
                     </MenuItem>
-                  </Link>
+                  </Link> */}
                   <Link href="/settings" color="white" prefetch={true}>
                     <MenuItem value="settings" fontSize="md" px={4} py={3}>
                       {t.navigation.settings}
