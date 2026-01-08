@@ -21,22 +21,42 @@ export default function RulesPage() {
         </Heading>
         <ListRoot gap={4}>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">One Pixel Per Day:</Text> Each address can set one pixel every 24 hours.
+            <Text as="span" fontWeight="bold" color="white">
+              One Pixel Per Day:
+            </Text>{' '}
+            Each address can set one pixel every 24 hours.
           </ListItem>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">Four Colors:</Text> Choose from black, purple, blue, or white.
+            <Text as="span" fontWeight="bold" color="white">
+              Four Colors:
+            </Text>{' '}
+            Choose from black, purple, blue, or white.
             <ListRoot gap={2} mt={2} ml={6}>
-              <ListItem fontSize="md" color="gray.300">Black (<Code>#000000</Code>)</ListItem>
-              <ListItem fontSize="md" color="gray.300">Purple (<Code>#8c1c84</Code>)</ListItem>
-              <ListItem fontSize="md" color="gray.300">Blue (<Code>#45a2f8</Code>)</ListItem>
-              <ListItem fontSize="md" color="gray.300">White (<Code>#FFFFFF</Code>)</ListItem>
+              <ListItem fontSize="md" color="gray.300">
+                Black (<Code>#000000</Code>)
+              </ListItem>
+              <ListItem fontSize="md" color="gray.300">
+                Purple (<Code>#8c1c84</Code>)
+              </ListItem>
+              <ListItem fontSize="md" color="gray.300">
+                Blue (<Code>#45a2f8</Code>)
+              </ListItem>
+              <ListItem fontSize="md" color="gray.300">
+                White (<Code>#FFFFFF</Code>)
+              </ListItem>
             </ListRoot>
           </ListItem>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">Collaborative Canvas:</Text> You can overwrite any pixel, including those placed by others.
+            <Text as="span" fontWeight="bold" color="white">
+              Collaborative Canvas:
+            </Text>{' '}
+            You can overwrite any pixel, including those placed by others.
           </ListItem>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">Growing Grid:</Text> When 80% of the canvas is filled, it automatically expands.
+            <Text as="span" fontWeight="bold" color="white">
+              Growing Grid:
+            </Text>{' '}
+            When 80% of the canvas is filled, it automatically expands.
           </ListItem>
         </ListRoot>
       </Box>
@@ -47,13 +67,23 @@ export default function RulesPage() {
         </Heading>
         <ListRoot gap={4}>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">BackToBlack Protection:</Text> When the grid is ready to expand (80%+ filled), you cannot clear pixels if it would prevent expansion.
+            <Text as="span" fontWeight="bold" color="white">
+              BackToBlack Protection:
+            </Text>{' '}
+            When the grid is ready to expand (80%+ filled), you cannot clear pixels if it would
+            prevent expansion.
           </ListItem>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">Gasless Transactions:</Text> Supports EIP-712 signatures for gasless pixel placement via relayers.
+            <Text as="span" fontWeight="bold" color="white">
+              Gasless Transactions:
+            </Text>{' '}
+            Supports EIP-712 signatures for gasless pixel placement via relayers.
           </ListItem>
           <ListItem fontSize="md" color="gray.300">
-            <Text as="span" fontWeight="bold" color="white">Attribution:</Text> Every pixel records its author and all placements emit transparent on-chain events.
+            <Text as="span" fontWeight="bold" color="white">
+              Attribution:
+            </Text>{' '}
+            Every pixel records its author and all placements emit transparent on-chain events.
           </ListItem>
         </ListRoot>
       </Box>

@@ -112,7 +112,10 @@ interface W3pkType {
   register: (username: string) => Promise<void>
   logout: () => void
   signMessage: (message: string) => Promise<string | null>
-  signMessageWithOptions: (message: string, options?: SignMessageOptions) => Promise<SignatureResult | null>
+  signMessageWithOptions: (
+    message: string,
+    options?: SignMessageOptions
+  ) => Promise<SignatureResult | null>
   deriveWallet: (mode?: string, tag?: string) => Promise<DerivedWallet>
   getAddress: (mode?: string, tag?: string) => Promise<string>
   getBackupStatus: () => Promise<BackupStatus>
@@ -489,7 +492,10 @@ export const W3pkProvider: React.FC<W3pkProviderProps> = ({ children }) => {
     }
   }
 
-  const signMessageWithOptions = async (message: string, options?: SignMessageOptions): Promise<SignatureResult | null> => {
+  const signMessageWithOptions = async (
+    message: string,
+    options?: SignMessageOptions
+  ): Promise<SignatureResult | null> => {
     if (!user) {
       toaster.create({
         title: 'Not Authenticated',

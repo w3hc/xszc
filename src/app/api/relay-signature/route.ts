@@ -12,8 +12,22 @@ export async function POST(request: NextRequest) {
     const { author, x, y, colorIndex, deadline, signature } = body
 
     // Validate required parameters
-    if (!author || x === undefined || y === undefined || colorIndex === undefined || !deadline || !signature) {
-      console.error('[API] Missing parameters:', { author, x, y, colorIndex, deadline, signature: signature ? 'present' : 'missing' })
+    if (
+      !author ||
+      x === undefined ||
+      y === undefined ||
+      colorIndex === undefined ||
+      !deadline ||
+      !signature
+    ) {
+      console.error('[API] Missing parameters:', {
+        author,
+        x,
+        y,
+        colorIndex,
+        deadline,
+        signature: signature ? 'present' : 'missing',
+      })
       return NextResponse.json(
         { error: 'Missing required parameters: author, x, y, colorIndex, deadline, signature' },
         { status: 400 }
@@ -23,10 +37,7 @@ export async function POST(request: NextRequest) {
     // Check if relayer private key is configured
     if (!RELAYER_PRIVATE_KEY) {
       console.error('[API] RELAYER_PRIVATE_KEY not configured')
-      return NextResponse.json(
-        { error: 'Relayer not configured' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Relayer not configured' }, { status: 500 })
     }
 
     // Validate author address
@@ -59,7 +70,12 @@ export async function POST(request: NextRequest) {
 
     // Submit the transaction to the blockchain (relayer pays gas, user's signature proves authorization)
     console.log('[API] Submitting transaction with params:', { author, x, y, colorIndex, deadline })
-    console.log('[API] Coordinate types:', { xType: typeof x, yType: typeof y, xValue: x, yValue: y })
+    console.log('[API] Coordinate types:', {
+      xType: typeof x,
+      yType: typeof y,
+      xValue: x,
+      yValue: y,
+    })
 
     const tx = await contract.setPixelWithSignature(
       author,
@@ -105,7 +121,10 @@ export async function POST(request: NextRequest) {
       console.error('[API] Error stack:', error.stack)
     }
     return NextResponse.json(
-      { error: 'Failed to relay transaction', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to relay transaction',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     )
   }
