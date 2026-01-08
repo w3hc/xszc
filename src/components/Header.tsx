@@ -249,7 +249,7 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
             <Portal>
               <MenuPositioner>
                 <MenuContent minWidth="auto">
-                  <Link href="/" color="white">
+                  <Link href="/" color="white" prefetch={true}>
                     <MenuItem value="home" fontSize="md" px={4} py={3}>
                       Home
                     </MenuItem>
@@ -259,17 +259,17 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
                       {t.common.login}
                     </MenuItem>
                   )}
-                  <Link href="/rules" color="white">
+                  <Link href="/rules" color="white" prefetch={true}>
                     <MenuItem value="rules" fontSize="md" px={4} py={3}>
                       Rules
                     </MenuItem>
                   </Link>
-                  <Link href="/dao" color="white">
+                  <Link href="/dao" color="white" prefetch={true}>
                     <MenuItem value="dao" fontSize="md" px={4} py={3}>
                       DAO
                     </MenuItem>
                   </Link>
-                  <Link href="/settings" color="white">
+                  <Link href="/settings" color="white" prefetch={true}>
                     <MenuItem value="settings" fontSize="md" px={4} py={3}>
                       {t.navigation.settings}
                     </MenuItem>
