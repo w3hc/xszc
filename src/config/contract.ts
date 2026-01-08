@@ -15,6 +15,8 @@ export const CONTRACT_ABI = [
   'function getPixelAuthor(int256 x, int256 y) view returns (address)',
   'function getPixelCount(address author) view returns (uint256)',
   'function shouldExpandGrid() view returns (bool)',
+  'function lastPixelTime(address) view returns (uint256)',
+  'function COOLDOWN_PERIOD() view returns (uint256)',
 
   // Write functions
   'function setPixel(int256 x, int256 y, uint8 colorIndex)',

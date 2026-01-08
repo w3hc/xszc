@@ -101,6 +101,17 @@ export default function RulesPage() {
           >
             XiangsuZhongchuang.sol
           </Link>
+          {' · '}
+          <Link
+            href="https://optimistic.etherscan.io/address/0xfdbfa059ed1c7d32ecf2df6bb8b6c46a42a34aba#code"
+            color="#45a2f8"
+            textDecoration="underline"
+            _hover={{ color: '#6bb8ff' }}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View on Etherscan
+          </Link>
         </Text>
       </Box>
     </VStack>
