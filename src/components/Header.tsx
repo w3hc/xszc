@@ -249,20 +249,36 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
             <Portal>
               <MenuPositioner>
                 <MenuContent minWidth="auto">
-                  {!isAuthenticated ? (
+                  <Link href="/" color="white">
+                    <MenuItem value="home" fontSize="md" px={4} py={3}>
+                      Home
+                    </MenuItem>
+                  </Link>
+                  {!isAuthenticated && (
                     <MenuItem value="login" fontSize="md" px={4} py={3} onClick={handleLogin}>
                       {t.common.login}
                     </MenuItem>
-                  ) : (
-                    <MenuItem value="logout" fontSize="md" px={4} py={3} onClick={handleLogout}>
-                      {t.common.logout}
-                    </MenuItem>
                   )}
+                  <Link href="/rules" color="white">
+                    <MenuItem value="rules" fontSize="md" px={4} py={3}>
+                      Rules
+                    </MenuItem>
+                  </Link>
+                  <Link href="/dao" color="white">
+                    <MenuItem value="dao" fontSize="md" px={4} py={3}>
+                      DAO
+                    </MenuItem>
+                  </Link>
                   <Link href="/settings" color="white">
                     <MenuItem value="settings" fontSize="md" px={4} py={3}>
                       {t.navigation.settings}
                     </MenuItem>
                   </Link>
+                  {isAuthenticated && (
+                    <MenuItem value="logout" fontSize="md" px={4} py={3} onClick={handleLogout}>
+                      {t.common.logout}
+                    </MenuItem>
+                  )}
                 </MenuContent>
               </MenuPositioner>
             </Portal>
