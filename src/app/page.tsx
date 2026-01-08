@@ -66,7 +66,7 @@ export default function Home() {
 
     const scaledSquareSize = SQUARE_SIZE * zoom
     const gridX = Math.floor((e.clientX - viewportOffset.x) / scaledSquareSize)
-    const gridY = Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize)
+    const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
     setCursorPosition({ x: gridX, y: gridY })
 
     const gridId = `${gridX}-${gridY}`
@@ -89,7 +89,7 @@ export default function Home() {
 
     const scaledSquareSize = SQUARE_SIZE * zoom
     const gridX = Math.floor((e.clientX - viewportOffset.x) / scaledSquareSize)
-    const gridY = Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize)
+    const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
     const gridId = `${gridX}-${gridY}`
 
     const clickedSquareIndex = squares.findIndex(square => square.id === gridId)
@@ -373,7 +373,7 @@ export default function Home() {
             key={square.id}
             position="absolute"
             left={`${square.gridX * scaledSquareSize + viewportOffset.x}px`}
-            top={`${square.gridY * scaledSquareSize + viewportOffset.y}px`}
+            top={`${-square.gridY * scaledSquareSize - scaledSquareSize + viewportOffset.y}px`}
             w={`${scaledSquareSize}px`}
             h={`${scaledSquareSize}px`}
             bg={colors[square.color]}
@@ -385,7 +385,7 @@ export default function Home() {
         <Box
           position="absolute"
           left={`${cursorPosition.x * SQUARE_SIZE * zoom + viewportOffset.x}px`}
-          top={`${cursorPosition.y * SQUARE_SIZE * zoom + viewportOffset.y}px`}
+          top={`${-cursorPosition.y * SQUARE_SIZE * zoom - SQUARE_SIZE * zoom + viewportOffset.y}px`}
           w={`${SQUARE_SIZE * zoom}px`}
           h={`${SQUARE_SIZE * zoom}px`}
           border={`${SQUARE_SIZE * zoom * 0.05}px solid`}
