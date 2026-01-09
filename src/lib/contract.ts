@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { CONTRACT_ADDRESS, CONTRACT_ABI, RPC_URL, COLORS, COLOR_NAMES } from '@/config/contract'
+import { CONTRACT_ADDRESS, CONTRACT_ABI, RPC_URL, COLOR_NAMES } from '@/config/contract'
 
 // Create a provider for reading from the contract
 export function getProvider() {
@@ -146,52 +146,15 @@ export async function getContractStats() {
   const maxValue = await contract.max()
   const max = Number(maxValue)
 
-  // Get all pixels to count total non-black pixels
-  const pixels = (await contract.getAllPixels()) as number[][]
-  let totalPixelsSet = 0
-  for (const row of pixels) {
-    for (const colorIndex of row) {
-      if (colorIndex !== 0) {
-        totalPixelsSet++
-      }
-    }
-  }
-
-  // Get total moves by querying PixelSet events
-  // Note: This may fail on public RPCs that don't support eth_getLogs
-  let totalMoves = 0
-  let totalCoAuthors = 0
-
-  try {
-    const filter = contract.filters.PixelSet()
-    const events = await contract.queryFilter(filter)
-    totalMoves = events.length
-
-    // Get unique co-authors from events
-    const uniqueAuthors = new Set<string>()
-    for (const event of events) {
-      // Check if event is an EventLog (has args property)
-      if ('args' in event && event.args && event.args.length > 0) {
-        uniqueAuthors.add(event.args[0] as string)
-      }
-    }
-    totalCoAuthors = uniqueAuthors.size
-  } catch (error) {
-    console.warn('Unable to query events on this RPC endpoint:', error)
-    // Fall back to using totalPixelsSet as an estimate for moves
-    totalMoves = totalPixelsSet
-    totalCoAuthors = 0
-  }
-
   // Get current block timestamp for calculations
   const currentBlock = await provider.getBlock('latest')
   const currentTimestamp = currentBlock?.timestamp || 0
 
   return {
     gridSize: max,
-    totalPixelsSet,
-    totalMoves,
-    totalCoAuthors,
+    totalPixelsSet: 0,
+    totalMoves: 0,
+    totalCoAuthors: 0,
     currentTimestamp,
   }
 }

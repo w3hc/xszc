@@ -1,7 +1,6 @@
 'use client'
 
-import { Box, Heading, Text, VStack, Code, Link } from '@chakra-ui/react'
-import { ListRoot, ListItem } from '@/components/ui/list'
+import { Box, Heading, Text, VStack, Code, Link, List } from '@chakra-ui/react'
 
 export default function RulesPage() {
   return (
@@ -19,73 +18,98 @@ export default function RulesPage() {
         <Heading size="lg" mb={4} color="#45a2f8">
           How It Works
         </Heading>
-        <ListRoot gap={4}>
-          <ListItem fontSize="md" color="gray.300">
+        <List.Root
+          gap={4}
+          pl={6}
+          css={{
+            '& li::marker': {
+              color: '#8c1c84',
+            },
+          }}
+        >
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               One Pixel Per Day:
             </Text>{' '}
             Each address can set one pixel every 24 hours.
-          </ListItem>
-          <ListItem fontSize="md" color="gray.300">
+          </List.Item>
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               Four Colors:
             </Text>{' '}
             Choose from black, purple, blue, or white.
-            <ListRoot gap={2} mt={2} ml={6}>
-              <ListItem fontSize="md" color="gray.300">
+            <List.Root
+              gap={2}
+              mt={2}
+              ml={6}
+              css={{
+                '& li::marker': {
+                  color: '#8c1c84',
+                },
+              }}
+            >
+              <List.Item fontSize="md" color="gray.300">
                 Black (<Code>#000000</Code>)
-              </ListItem>
-              <ListItem fontSize="md" color="gray.300">
+              </List.Item>
+              <List.Item fontSize="md" color="gray.300">
                 Purple (<Code>#8c1c84</Code>)
-              </ListItem>
-              <ListItem fontSize="md" color="gray.300">
+              </List.Item>
+              <List.Item fontSize="md" color="gray.300">
                 Blue (<Code>#45a2f8</Code>)
-              </ListItem>
-              <ListItem fontSize="md" color="gray.300">
+              </List.Item>
+              <List.Item fontSize="md" color="gray.300">
                 White (<Code>#FFFFFF</Code>)
-              </ListItem>
-            </ListRoot>
-          </ListItem>
-          <ListItem fontSize="md" color="gray.300">
+              </List.Item>
+            </List.Root>
+          </List.Item>
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               Collaborative Canvas:
             </Text>{' '}
             You can overwrite any pixel, including those placed by others.
-          </ListItem>
-          <ListItem fontSize="md" color="gray.300">
+          </List.Item>
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               Growing Grid:
             </Text>{' '}
             When 80% of the canvas is filled, it automatically expands.
-          </ListItem>
-        </ListRoot>
+          </List.Item>
+        </List.Root>
       </Box>
 
       <Box>
         <Heading size="lg" mb={4} color="#45a2f8">
           Additional Details
         </Heading>
-        <ListRoot gap={4}>
-          <ListItem fontSize="md" color="gray.300">
+        <List.Root
+          gap={4}
+          pl={6}
+          css={{
+            '& li::marker': {
+              color: '#8c1c84',
+            },
+          }}
+        >
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               BackToBlack Protection:
             </Text>{' '}
             When the grid is ready to expand (80%+ filled), you cannot clear pixels if it would
             prevent expansion.
-          </ListItem>
-          <ListItem fontSize="md" color="gray.300">
+          </List.Item>
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               Gasless Transactions:
             </Text>{' '}
             Supports EIP-712 signatures for gasless pixel placement via relayers.
-          </ListItem>
-          <ListItem fontSize="md" color="gray.300">
+          </List.Item>
+          <List.Item fontSize="md" color="gray.300">
             <Text as="span" fontWeight="bold" color="white">
               Attribution:
             </Text>{' '}
             Every pixel records its author and all placements emit transparent on-chain events.
-          </ListItem>
-        </ListRoot>
+          </List.Item>
+        </List.Root>
       </Box>
 
       <Box pt={6} borderTop="1px" borderColor="gray.700">

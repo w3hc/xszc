@@ -1,7 +1,9 @@
 // Contract configuration for XiangsuZhongchuang
 export const CONTRACT_ADDRESS = '0xFDBfA059ed1C7d32eCF2df6BB8b6C46A42a34ABa'
-export const RPC_URL = 'https://mainnet.optimism.io'
+// export const RPC_URL = 'https://mainnet.optimism.io'
+export const RPC_URL = 'https://optimism-rpc.publicnode.com'
 export const CHAIN_ID = 10 // OP Mainnet
+export const CONTRACT_DEPLOYMENT_BLOCK = 130668148 // Block when contract was deployed
 
 // Contract ABI - only including the functions we need
 export const CONTRACT_ABI = [
