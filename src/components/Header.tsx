@@ -219,8 +219,8 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
     }
   }, [username])
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
   }
 
   const handleModalClose = () => {
