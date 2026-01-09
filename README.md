@@ -2,7 +2,7 @@
 
 _xiàngsù zhòngchuàng_
 
-Xiangsu Zhongchuang (XSZC) is a Collective pixel artwork.
+Xiangsu Zhongchuang (XSZC) is a collective pixel artwork.
 
 ## Install
 
