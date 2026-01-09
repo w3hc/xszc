@@ -22,9 +22,9 @@ pnpm dev
 pnpm build
 ```
 
-## Switching Between Networks
+## Switch network
 
-Use the Claude Code network switcher skill to easily switch between OP Mainnet and Anvil local network:
+Use the network switcher to switch between OP Mainnet and Anvil local network (for testing):
 
 ```bash
 # Switch to OP Mainnet
@@ -34,7 +34,7 @@ Use the Claude Code network switcher skill to easily switch between OP Mainnet a
 /switch-network anvil
 ```
 
-The skill will automatically update:
+It will update:
 
 - Contract address in `src/config/contract.ts`
 - RPC URL and Chain ID
