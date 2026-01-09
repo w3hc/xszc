@@ -1,7 +1,6 @@
 'use client'
 
-import { Box, Heading, Text, VStack, Code, Link } from '@chakra-ui/react'
-import { ListRoot, ListItem } from '@/components/ui/list'
+import { Box, Heading, Text, VStack, Code, Link, List } from '@chakra-ui/react'
 import { useState, useEffect, memo, useCallback } from 'react'
 import { useW3PK } from '@/context/W3PK'
 import { getContractStats, getContract, getProvider } from '@/lib/contract'
@@ -21,20 +20,45 @@ const UserStatus = memo(
   ({
     cooldownSeconds,
     userAddress,
+    userMoves,
     formatCountdown,
   }: {
     cooldownSeconds: number
     userAddress: string
+    userMoves: number
     formatCountdown: (seconds: number) => string
   }) => (
     <Box>
       <Heading size="lg" mb={4} color="#45a2f8">
         Your Status
       </Heading>
-      <ListRoot gap={4}>
-        <ListItem fontSize="md" color="gray.300">
+      <List.Root
+        gap={4}
+        pl={6}
+        css={{
+          '& li::marker': {
+            color: '#8c1c84',
+          },
+        }}
+      >
+        <List.Item fontSize="md" color="gray.300">
           <Text as="span" fontWeight="bold" color="white">
-            Cooldown Remaining:
+            Your address:
+          </Text>{' '}
+          {userAddress ? (
+            <Code fontSize="sm" bg="gray.800" px={2} py={1} borderRadius="md">
+              {userAddress}
+            </Code>
+          ) : (
+            <Text as="span" color="gray.500">
+              Not connected
+            </Text>
+          )}
+        </List.Item>
+
+        <List.Item fontSize="md" color="gray.300">
+          <Text as="span" fontWeight="bold" color="white">
+            Time remaining:
           </Text>{' '}
           <Code
             fontSize="md"
@@ -46,25 +70,17 @@ const UserStatus = memo(
           >
             {formatCountdown(cooldownSeconds)}
           </Code>
-          <Text as="span" fontSize="sm" color="gray.500" ml={2}>
-            (at page load)
-          </Text>
-        </ListItem>
-        <ListItem fontSize="md" color="gray.300">
+        </List.Item>
+
+        <List.Item fontSize="md" color="gray.300">
           <Text as="span" fontWeight="bold" color="white">
-            Your Address:
+            Your total moves:
           </Text>{' '}
-          {userAddress ? (
-            <Code fontSize="sm" bg="gray.800" px={2} py={1} borderRadius="md">
-              {userAddress}
-            </Code>
-          ) : (
-            <Text as="span" color="gray.500">
-              Not connected
-            </Text>
-          )}
-        </ListItem>
-      </ListRoot>
+          <Code fontSize="md" bg="gray.800" px={2} py={1} borderRadius="md">
+            {userMoves.toLocaleString()}
+          </Code>
+        </List.Item>
+      </List.Root>
     </Box>
   )
 )
@@ -77,52 +93,24 @@ const GlobalStats = memo(({ stats }: { stats: Stats | null }) => (
     <Heading size="lg" mb={4} color="#45a2f8">
       Global Statistics
     </Heading>
-    <ListRoot gap={4}>
-      <ListItem fontSize="md" color="gray.300">
+    <List.Root
+      gap={4}
+      pl={6}
+      css={{
+        '& li::marker': {
+          color: '#8c1c84',
+        },
+      }}
+    >
+      <List.Item fontSize="md" color="gray.300">
         <Text as="span" fontWeight="bold" color="white">
-          Total Moves:
-        </Text>{' '}
-        <Code fontSize="md" bg="gray.800" px={2} py={1} borderRadius="md">
-          {stats?.totalMoves.toLocaleString()}
-        </Code>
-        <Text as="span" fontSize="sm" color="gray.500" ml={2}>
-          (all pixel placements)
-        </Text>
-      </ListItem>
-      <ListItem fontSize="md" color="gray.300">
-        <Text as="span" fontWeight="bold" color="white">
-          Co-Authors:
-        </Text>{' '}
-        <Code fontSize="md" bg="gray.800" px={2} py={1} borderRadius="md">
-          {stats?.totalCoAuthors.toLocaleString()}
-        </Code>
-        <Text as="span" fontSize="sm" color="gray.500" ml={2}>
-          (unique contributors)
-        </Text>
-      </ListItem>
-      <ListItem fontSize="md" color="gray.300">
-        <Text as="span" fontWeight="bold" color="white">
-          Pixels Set:
-        </Text>{' '}
-        <Code fontSize="md" bg="gray.800" px={2} py={1} borderRadius="md">
-          {stats?.totalPixelsSet.toLocaleString()}
-        </Code>
-        <Text as="span" fontSize="sm" color="gray.500" ml={2}>
-          (current non-black pixels)
-        </Text>
-      </ListItem>
-      <ListItem fontSize="md" color="gray.300">
-        <Text as="span" fontWeight="bold" color="white">
-          Grid Size:
+          Current grid Size:
         </Text>{' '}
         <Code fontSize="md" bg="gray.800" px={2} py={1} borderRadius="md">
           {stats?.gridSize ? `${stats.gridSize * 2 + 1} × ${stats.gridSize * 2 + 1}` : 'N/A'}
         </Code>
-        <Text as="span" fontSize="sm" color="gray.500" ml={2}>
-          (from -{stats?.gridSize} to +{stats?.gridSize})
-        </Text>
-      </ListItem>
-    </ListRoot>
+      </List.Item>
+    </List.Root>
   </Box>
 ))
 
@@ -132,6 +120,7 @@ export default function StatsPage() {
   const { getAddress } = useW3PK()
   const [stats, setStats] = useState<Stats | null>(null)
   const [userAddress, setUserAddress] = useState<string>('')
+  const [userMoves, setUserMoves] = useState<number>(0)
   const [cooldownSeconds, setCooldownSeconds] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -165,10 +154,11 @@ export default function StatsPage() {
               const contract = getContract()
               const provider = getProvider()
 
-              const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
+              const [lastPixelTime, cooldownPeriod, currentBlock, pixelCount] = await Promise.all([
                 contract.lastPixelTime(address),
                 contract.COOLDOWN_PERIOD(),
                 provider.getBlock('latest'),
+                contract.getPixelCount(address),
               ])
 
               const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
@@ -179,11 +169,11 @@ export default function StatsPage() {
               const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
               const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
 
-              return { address, cooldown }
+              return { address, cooldown, moves: Number(pixelCount) }
             } catch (err) {
               console.log('Could not get user address:', err)
               // Not critical - user might not have wallet connected
-              return { address: '', cooldown: 0 }
+              return { address: '', cooldown: 0, moves: 0 }
             }
           })(),
         ])
@@ -192,6 +182,7 @@ export default function StatsPage() {
         if (isMounted) {
           setStats(contractStats)
           setUserAddress(userDataResult.address)
+          setUserMoves(userDataResult.moves)
           setCooldownSeconds(userDataResult.cooldown)
         }
       } catch (err) {
@@ -214,7 +205,16 @@ export default function StatsPage() {
     }
   }, [getAddress])
 
-  // No real-time updates - stats are loaded once at page load
+  // Countdown timer - decrements every second to show visual progress
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return
+
+    const interval = setInterval(() => {
+      setCooldownSeconds(prev => Math.max(0, prev - 1))
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [cooldownSeconds])
 
   if (isLoading) {
     return (
@@ -248,13 +248,11 @@ export default function StatsPage() {
     <VStack gap={8} align="stretch" maxW="4xl" mx="auto" px={6} py={20}>
       <Box>
         <Heading size="2xl" mb={6} color="#45a2f8">
-          Stats
+          Live stats
         </Heading>
-        <Text fontSize="xl" color="white" fontWeight="semibold" mb={4}>
-          Live statistics from the collective pixel artwork
-        </Text>
-        <Text fontSize="sm" color="gray.400">
-          Contract:{' '}
+
+        <Text as="span" color="white">
+          Contract address:{' '}
           <Link
             href={`https://optimistic.etherscan.io/address/${CONTRACT_ADDRESS}#code`}
             target="_blank"
@@ -271,6 +269,7 @@ export default function StatsPage() {
       <UserStatus
         cooldownSeconds={cooldownSeconds}
         userAddress={userAddress}
+        userMoves={userMoves}
         formatCountdown={formatCountdown}
       />
 
