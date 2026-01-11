@@ -66,9 +66,8 @@ export default function Home() {
 
       // Get the modified pixel details
       const modifiedCoordinate = Array.from(modifiedCoordinates)[0]
-      // Parse coordinates - must handle negative numbers correctly
-      // Format is "x-y" where x and y can be negative (e.g., "-3--3")
-      const parts = modifiedCoordinate.match(/-?\d+/g)
+      // Parse coordinates - format is "x,y" where x and y can be negative (e.g., "-5,2")
+      const parts = modifiedCoordinate.split(',')
       if (!parts || parts.length !== 2) {
         throw new Error(`Invalid coordinate format: ${modifiedCoordinate}`)
       }
@@ -224,7 +223,7 @@ export default function Home() {
     const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
     setCursorPosition({ x: gridX, y: gridY })
 
-    const gridId = `${gridX}-${gridY}`
+    const gridId = `${gridX},${gridY}`
     const existingSquare = squares.find(square => square.id === gridId)
 
     if (existingSquare) {
@@ -255,7 +254,7 @@ export default function Home() {
       gridX >= -maxSize && gridX < maxSize && gridY >= -maxSize && gridY < maxSize
     setLastClickWasOffGrid(!isWithinBounds)
 
-    const gridId = `${gridX}-${gridY}`
+    const gridId = `${gridX},${gridY}`
 
     console.log('[Click] Screen position:', { clientX: e.clientX, clientY: e.clientY })
     console.log('[Click] Viewport offset:', viewportOffset)
@@ -443,7 +442,7 @@ export default function Home() {
     const cleanup = subscribeToEvents(
       (_author, x, y, colorIndex) => {
         // Update squares when a pixel is set
-        const gridId = `${x}-${y}`
+        const gridId = `${x},${y}`
         setSquares(prev => {
           const existingIndex = prev.findIndex(s => s.id === gridId)
           const colorName = ['black', 'purple', 'blue', 'white'][colorIndex] as Square['color']
