@@ -113,7 +113,7 @@ export function convertGridToSquares(pixels: number[][], max: number) {
       if (colorIndex !== 0) {
         const colorName = COLOR_NAMES[colorIndex as keyof typeof COLOR_NAMES]
         squares.push({
-          id: `${x}-${y}`,
+          id: `${x},${y}`,
           gridX: x,
           gridY: y,
           color: colorName as 'purple' | 'blue' | 'white' | 'black',

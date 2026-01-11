@@ -28,9 +28,14 @@ import { brandColors } from '@/theme'
 interface HeaderProps {
   addedPixelsCount?: number
   onReset?: () => void
+  cooldownSeconds?: number
 }
 
-export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
+export default function Header({
+  addedPixelsCount = 0,
+  onReset,
+  cooldownSeconds = 0,
+}: HeaderProps) {
   const { isAuthenticated, user, isLoading, login, register, logout } = useW3PK()
   const t = useTranslation()
   const pathname = usePathname()
@@ -38,6 +43,15 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
   const [username, setUsername] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
   const [isUsernameInvalid, setIsUsernameInvalid] = useState(false)
+
+  // Format countdown as HH:MM:SS
+  const formatCountdown = (seconds: number): string => {
+    if (seconds <= 0) return ''
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
   const validateUsername = (input: string): boolean => {
     if (!input.trim()) {
@@ -237,7 +251,8 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
               _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
             >
               {addedPixelsCount === 0 && ''}
-              {addedPixelsCount === 1 && 'Add pixel'}
+              {addedPixelsCount === 1 && cooldownSeconds > 0 && formatCountdown(cooldownSeconds)}
+              {addedPixelsCount === 1 && cooldownSeconds <= 0 && 'Set pixel'}
               {addedPixelsCount >= 2 && 'Reset'}
             </Text>
           </Box>

@@ -2,7 +2,13 @@
 
 import { Box, Text } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
-import { getGridState, convertGridToSquares, subscribeToEvents } from '@/lib/contract'
+import {
+  getGridState,
+  convertGridToSquares,
+  subscribeToEvents,
+  getContract,
+  getProvider,
+} from '@/lib/contract'
 import GridSquare from '@/components/GridSquare'
 import { useW3PK } from '@/context/W3PK'
 import { CONTRACT_ADDRESS, CHAIN_ID } from '@/config/contract'
@@ -48,6 +54,16 @@ export default function Home() {
   const [modifiedCoordinates, setModifiedCoordinates] = useState<Set<string>>(new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [lastClickWasOffGrid, setLastClickWasOffGrid] = useState(false)
+  const [cooldownSeconds, setCooldownSeconds] = useState<number>(0)
+
+  // Format countdown as HH:MM:SS
+  const formatCountdown = (seconds: number): string => {
+    if (seconds <= 0) return ''
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
   const handleReset = () => {
     setSquares([...originalSquares])
@@ -66,9 +82,8 @@ export default function Home() {
 
       // Get the modified pixel details
       const modifiedCoordinate = Array.from(modifiedCoordinates)[0]
-      // Parse coordinates - must handle negative numbers correctly
-      // Format is "x-y" where x and y can be negative (e.g., "-3--3")
-      const parts = modifiedCoordinate.match(/-?\d+/g)
+      // Parse coordinates - format is "x,y" where x and y can be negative (e.g., "-5,2")
+      const parts = modifiedCoordinate.split(',')
       if (!parts || parts.length !== 2) {
         throw new Error(`Invalid coordinate format: ${modifiedCoordinate}`)
       }
@@ -224,7 +239,7 @@ export default function Home() {
     const gridY = -Math.floor((e.clientY - viewportOffset.y) / scaledSquareSize) - 1
     setCursorPosition({ x: gridX, y: gridY })
 
-    const gridId = `${gridX}-${gridY}`
+    const gridId = `${gridX},${gridY}`
     const existingSquare = squares.find(square => square.id === gridId)
 
     if (existingSquare) {
@@ -255,7 +270,7 @@ export default function Home() {
       gridX >= -maxSize && gridX < maxSize && gridY >= -maxSize && gridY < maxSize
     setLastClickWasOffGrid(!isWithinBounds)
 
-    const gridId = `${gridX}-${gridY}`
+    const gridId = `${gridX},${gridY}`
 
     console.log('[Click] Screen position:', { clientX: e.clientX, clientY: e.clientY })
     console.log('[Click] Viewport offset:', viewportOffset)
@@ -418,6 +433,59 @@ export default function Home() {
     setLastTouchDistance(null)
   }
 
+  // Load cooldown data
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadCooldownData() {
+      try {
+        const address = await getAddress('STANDARD', 'MAIN')
+
+        // Get lastPixelTime and COOLDOWN_PERIOD from contract
+        const contract = getContract()
+        const provider = getProvider()
+
+        const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
+          contract.lastPixelTime(address),
+          contract.COOLDOWN_PERIOD(),
+          provider.getBlock('latest'),
+        ])
+
+        const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
+        const lastPixelTimestamp = Number(lastPixelTime)
+        const cooldownPeriodSeconds = Number(cooldownPeriod)
+
+        // Calculate remaining cooldown
+        const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
+        const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
+
+        if (isMounted) {
+          setCooldownSeconds(cooldown)
+        }
+      } catch (err) {
+        console.log('Could not get cooldown data:', err)
+        // Not critical - user might not have wallet connected
+      }
+    }
+
+    loadCooldownData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [getAddress])
+
+  // Countdown timer - decrements every second
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return
+
+    const interval = setInterval(() => {
+      setCooldownSeconds(prev => Math.max(0, prev - 1))
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [cooldownSeconds])
+
   // Load grid state from contract on mount
   useEffect(() => {
     async function loadGridState() {
@@ -443,7 +511,7 @@ export default function Home() {
     const cleanup = subscribeToEvents(
       (_author, x, y, colorIndex) => {
         // Update squares when a pixel is set
-        const gridId = `${x}-${y}`
+        const gridId = `${x},${y}`
         setSquares(prev => {
           const existingIndex = prev.findIndex(s => s.id === gridId)
           const colorName = ['black', 'purple', 'blue', 'white'][colorIndex] as Square['color']
@@ -562,34 +630,41 @@ export default function Home() {
           fontSize="sm"
           color="gray.300"
           cursor={
-            addedPixelsCount === 1 && !lastClickWasOffGrid
+            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0
               ? 'pointer'
               : addedPixelsCount >= 2
                 ? 'pointer'
                 : 'default'
           }
           onClick={
-            addedPixelsCount === 1 && !lastClickWasOffGrid
+            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0
               ? handleAddPixel
               : addedPixelsCount >= 2
                 ? handleReset
                 : undefined
           }
           _hover={
-            addedPixelsCount === 1 && !lastClickWasOffGrid
+            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0
               ? { color: 'white' }
               : addedPixelsCount >= 2
                 ? { color: 'white' }
                 : undefined
           }
           className={
-            addedPixelsCount === 1 && !lastClickWasOffGrid && !isSubmitting ? 'shimmer-text' : ''
+            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0 && !isSubmitting
+              ? 'shimmer-text'
+              : ''
           }
         >
           {addedPixelsCount === 0 && ''}
           {addedPixelsCount === 1 && lastClickWasOffGrid && 'Off the grid'}
           {addedPixelsCount === 1 &&
             !lastClickWasOffGrid &&
+            cooldownSeconds > 0 &&
+            formatCountdown(cooldownSeconds)}
+          {addedPixelsCount === 1 &&
+            !lastClickWasOffGrid &&
+            cooldownSeconds <= 0 &&
             (isSubmitting ? 'Adding...' : 'Add pixel')}
           {addedPixelsCount >= 2 && 'Reset'}
         </Text>
