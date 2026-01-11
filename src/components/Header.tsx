@@ -31,7 +31,11 @@ interface HeaderProps {
   cooldownSeconds?: number
 }
 
-export default function Header({ addedPixelsCount = 0, onReset, cooldownSeconds = 0 }: HeaderProps) {
+export default function Header({
+  addedPixelsCount = 0,
+  onReset,
+  cooldownSeconds = 0,
+}: HeaderProps) {
   const { isAuthenticated, user, isLoading, login, register, logout } = useW3PK()
   const t = useTranslation()
   const pathname = usePathname()

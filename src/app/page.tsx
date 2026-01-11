@@ -2,7 +2,13 @@
 
 import { Box, Text } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
-import { getGridState, convertGridToSquares, subscribeToEvents, getContract, getProvider } from '@/lib/contract'
+import {
+  getGridState,
+  convertGridToSquares,
+  subscribeToEvents,
+  getContract,
+  getProvider,
+} from '@/lib/contract'
 import GridSquare from '@/components/GridSquare'
 import { useW3PK } from '@/context/W3PK'
 import { CONTRACT_ADDRESS, CHAIN_ID } from '@/config/contract'
@@ -645,12 +651,17 @@ export default function Home() {
                 : undefined
           }
           className={
-            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0 && !isSubmitting ? 'shimmer-text' : ''
+            addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds <= 0 && !isSubmitting
+              ? 'shimmer-text'
+              : ''
           }
         >
           {addedPixelsCount === 0 && ''}
           {addedPixelsCount === 1 && lastClickWasOffGrid && 'Off the grid'}
-          {addedPixelsCount === 1 && !lastClickWasOffGrid && cooldownSeconds > 0 && formatCountdown(cooldownSeconds)}
+          {addedPixelsCount === 1 &&
+            !lastClickWasOffGrid &&
+            cooldownSeconds > 0 &&
+            formatCountdown(cooldownSeconds)}
           {addedPixelsCount === 1 &&
             !lastClickWasOffGrid &&
             cooldownSeconds <= 0 &&
