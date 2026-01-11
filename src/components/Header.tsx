@@ -237,7 +237,7 @@ export default function Header({ addedPixelsCount = 0, onReset }: HeaderProps) {
               _hover={addedPixelsCount >= 2 ? { color: 'white' } : undefined}
             >
               {addedPixelsCount === 0 && ''}
-              {addedPixelsCount === 1 && 'Add pixel'}
+              {addedPixelsCount === 1 && 'Set pixel'}
               {addedPixelsCount >= 2 && 'Reset'}
             </Text>
           </Box>
