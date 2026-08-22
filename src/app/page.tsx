@@ -32,7 +32,7 @@ const colors = {
 const colorCycle: Array<Square['color']> = ['purple', 'blue', 'white', 'black']
 
 export default function Home() {
-  const { getAddress, signMessageWithOptions } = useW3PK()
+  const { getAddress, signMessage } = useW3PK()
   const [squares, setSquares] = useState<Square[]>([])
   const [maxSize, setMaxSize] = useState(8)
   const [isLoading, setIsLoading] = useState(true)
@@ -63,6 +63,37 @@ export default function Home() {
     const minutes = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const loadCooldownData = async (isMounted: () => boolean = () => true) => {
+    try {
+      const address = await getAddress('STANDARD', 'MAIN')
+
+      // Get lastPixelTime and COOLDOWN_PERIOD from contract
+      const contract = getContract()
+      const provider = getProvider()
+
+      const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
+        contract.lastPixelTime(address),
+        contract.COOLDOWN_PERIOD(),
+        provider.getBlock('latest'),
+      ])
+
+      const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
+      const lastPixelTimestamp = Number(lastPixelTime)
+      const cooldownPeriodSeconds = Number(cooldownPeriod)
+
+      // Calculate remaining cooldown
+      const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
+      const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
+
+      if (isMounted()) {
+        setCooldownSeconds(cooldown)
+      }
+    } catch (err) {
+      console.log('Could not get cooldown data:', err)
+      // Not critical - user might not have wallet connected
+    }
   }
 
   const handleReset = () => {
@@ -161,7 +192,7 @@ export default function Home() {
       console.log('[Frontend] With domain:', domain)
       console.log('[Frontend] And types:', types)
 
-      const signResult = await signMessageWithOptions(JSON.stringify(message), {
+      const signature = await signMessage(JSON.stringify(message), {
         mode: 'STANDARD',
         tag: 'MAIN',
         signingMethod: 'EIP712',
@@ -170,9 +201,7 @@ export default function Home() {
         eip712PrimaryType: 'SetPixel',
       })
 
-      console.log('[Frontend] Sign result:', signResult)
-
-      if (!signResult) {
+      if (!signature) {
         throw new Error('Failed to sign message')
       }
 
@@ -183,7 +212,7 @@ export default function Home() {
         y,
         colorIndex,
         deadline,
-        signature: signResult.signature,
+        signature,
       }
       console.log('[Frontend] Sending to API:', requestBody)
 
@@ -212,6 +241,9 @@ export default function Home() {
       const contractSquares = convertGridToSquares(pixels, max)
       setSquares(contractSquares)
       setOriginalSquares(contractSquares)
+
+      // Refresh the cooldown so the countdown shows for the next pixel
+      await loadCooldownData()
     } catch (err) {
       console.error('Failed to add pixel:', err)
       alert(`Failed to add pixel: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -437,42 +469,12 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true
 
-    async function loadCooldownData() {
-      try {
-        const address = await getAddress('STANDARD', 'MAIN')
-
-        // Get lastPixelTime and COOLDOWN_PERIOD from contract
-        const contract = getContract()
-        const provider = getProvider()
-
-        const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
-          contract.lastPixelTime(address),
-          contract.COOLDOWN_PERIOD(),
-          provider.getBlock('latest'),
-        ])
-
-        const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
-        const lastPixelTimestamp = Number(lastPixelTime)
-        const cooldownPeriodSeconds = Number(cooldownPeriod)
-
-        // Calculate remaining cooldown
-        const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
-        const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
-
-        if (isMounted) {
-          setCooldownSeconds(cooldown)
-        }
-      } catch (err) {
-        console.log('Could not get cooldown data:', err)
-        // Not critical - user might not have wallet connected
-      }
-    }
-
-    loadCooldownData()
+    loadCooldownData(() => isMounted)
 
     return () => {
       isMounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getAddress])
 
   // Countdown timer - decrements every second

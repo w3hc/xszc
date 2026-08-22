@@ -335,15 +335,9 @@ const testSignature = async () => {
   const provider = new ethers.BrowserProvider(window.ethereum)
   const signer = await provider.getSigner()
 
-  const domain = {
-    /* ... */
-  }
-  const types = {
-    /* ... */
-  }
-  const message = {
-    /* ... */
-  }
+  const domain = {/* ... */}
+  const types = {/* ... */}
+  const message = {/* ... */}
 
   const signature = await signer.signTypedData(domain, types, message)
   const sig = ethers.Signature.from(signature)
