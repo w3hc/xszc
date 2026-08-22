@@ -65,6 +65,37 @@ export default function Home() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  const loadCooldownData = async (isMounted: () => boolean = () => true) => {
+    try {
+      const address = await getAddress('STANDARD', 'MAIN')
+
+      // Get lastPixelTime and COOLDOWN_PERIOD from contract
+      const contract = getContract()
+      const provider = getProvider()
+
+      const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
+        contract.lastPixelTime(address),
+        contract.COOLDOWN_PERIOD(),
+        provider.getBlock('latest'),
+      ])
+
+      const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
+      const lastPixelTimestamp = Number(lastPixelTime)
+      const cooldownPeriodSeconds = Number(cooldownPeriod)
+
+      // Calculate remaining cooldown
+      const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
+      const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
+
+      if (isMounted()) {
+        setCooldownSeconds(cooldown)
+      }
+    } catch (err) {
+      console.log('Could not get cooldown data:', err)
+      // Not critical - user might not have wallet connected
+    }
+  }
+
   const handleReset = () => {
     setSquares([...originalSquares])
     setModifiedCoordinates(new Set())
@@ -210,6 +241,9 @@ export default function Home() {
       const contractSquares = convertGridToSquares(pixels, max)
       setSquares(contractSquares)
       setOriginalSquares(contractSquares)
+
+      // Refresh the cooldown so the countdown shows for the next pixel
+      await loadCooldownData()
     } catch (err) {
       console.error('Failed to add pixel:', err)
       alert(`Failed to add pixel: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -435,42 +469,12 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true
 
-    async function loadCooldownData() {
-      try {
-        const address = await getAddress('STANDARD', 'MAIN')
-
-        // Get lastPixelTime and COOLDOWN_PERIOD from contract
-        const contract = getContract()
-        const provider = getProvider()
-
-        const [lastPixelTime, cooldownPeriod, currentBlock] = await Promise.all([
-          contract.lastPixelTime(address),
-          contract.COOLDOWN_PERIOD(),
-          provider.getBlock('latest'),
-        ])
-
-        const currentTimestamp = currentBlock?.timestamp || Math.floor(Date.now() / 1000)
-        const lastPixelTimestamp = Number(lastPixelTime)
-        const cooldownPeriodSeconds = Number(cooldownPeriod)
-
-        // Calculate remaining cooldown
-        const nextAllowedTime = lastPixelTimestamp + cooldownPeriodSeconds
-        const cooldown = Math.max(0, nextAllowedTime - currentTimestamp)
-
-        if (isMounted) {
-          setCooldownSeconds(cooldown)
-        }
-      } catch (err) {
-        console.log('Could not get cooldown data:', err)
-        // Not critical - user might not have wallet connected
-      }
-    }
-
-    loadCooldownData()
+    loadCooldownData(() => isMounted)
 
     return () => {
       isMounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getAddress])
 
   // Countdown timer - decrements every second
