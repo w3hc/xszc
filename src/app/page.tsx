@@ -32,7 +32,7 @@ const colors = {
 const colorCycle: Array<Square['color']> = ['purple', 'blue', 'white', 'black']
 
 export default function Home() {
-  const { getAddress, signMessageWithOptions } = useW3PK()
+  const { getAddress, signMessage } = useW3PK()
   const [squares, setSquares] = useState<Square[]>([])
   const [maxSize, setMaxSize] = useState(8)
   const [isLoading, setIsLoading] = useState(true)
@@ -161,7 +161,7 @@ export default function Home() {
       console.log('[Frontend] With domain:', domain)
       console.log('[Frontend] And types:', types)
 
-      const signResult = await signMessageWithOptions(JSON.stringify(message), {
+      const signature = await signMessage(JSON.stringify(message), {
         mode: 'STANDARD',
         tag: 'MAIN',
         signingMethod: 'EIP712',
@@ -170,9 +170,7 @@ export default function Home() {
         eip712PrimaryType: 'SetPixel',
       })
 
-      console.log('[Frontend] Sign result:', signResult)
-
-      if (!signResult) {
+      if (!signature) {
         throw new Error('Failed to sign message')
       }
 
@@ -183,7 +181,7 @@ export default function Home() {
         y,
         colorIndex,
         deadline,
-        signature: signResult.signature,
+        signature,
       }
       console.log('[Frontend] Sending to API:', requestBody)
 

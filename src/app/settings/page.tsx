@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+// AI Inspection feature (disabled)
+// import { inspect } from 'w3pk'
 import {
   Box,
   Heading,
@@ -43,12 +45,15 @@ import {
   FiClock,
   FiUserPlus,
 } from 'react-icons/fi'
-import { useW3PK } from '../../../src/context/W3PK'
+import { useW3PK } from '@/context/W3PK'
 import { useTranslation } from '@/hooks/useTranslation'
-import Spinner from '../../../src/components/Spinner'
-import PasswordModal from '../../components/PasswordModal'
+import Spinner from '@/components/Spinner'
+import PasswordModal from '@/components/PasswordModal'
 import { CodeBlock } from '@/components/CodeBlock'
-import { detectBrowser, isWebAuthnAvailable } from '../../../src/utils/browserDetection'
+// AI Inspection feature (disabled) - only used to render the security report
+// import ReactMarkdown from 'react-markdown'
+// import remarkGfm from 'remark-gfm'
+import { detectBrowser, isWebAuthnAvailable } from '@/utils/browserDetection'
 import { brandColors } from '@/theme'
 import { BuildVerification } from '@/components/BuildVerification'
 import {
@@ -60,7 +65,7 @@ import {
   clearIndexedDBRecord,
   type LocalStorageItem,
   type IndexedDBInfo,
-} from '../../../src/utils/storageInspection'
+} from '@/utils/storageInspection'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   SliderRoot,
@@ -119,17 +124,33 @@ const SettingsPage = () => {
     return days >= 1 && days <= 30 ? days : 7
   })
 
-  // Handler for session duration change
-  const handleSessionDurationChange = async (details: { value: number[] }) => {
+  // Pending logout/login cycle scheduled after a duration change; kept in a ref
+  // so a new change cancels the previous cycle instead of stacking logins
+  const sessionRelogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Fires on every step while dragging: only update the displayed value
+  const handleSessionDurationChange = (details: { value: number[] }) => {
+    setPersistentSessionDays(details.value[0])
+  }
+
+  // Fires once when the user releases the slider: persist and re-login.
+  // The re-login matters beyond applying the new duration: the persistent
+  // session blob is encrypted under a key from the WebAuthn PRF extension,
+  // and only a real (prompted) login can re-key it.
+  const handleSessionDurationChangeEnd = (details: { value: number[] }) => {
     const days = details.value[0]
-    setPersistentSessionDays(days)
-    localStorage.setItem('persistentSessionDuration', days.toString())
+    setPersistentSessionDuration(days)
+
+    if (sessionRelogTimeoutRef.current) {
+      clearTimeout(sessionRelogTimeoutRef.current)
+    }
 
     // Wait 3 seconds then logout and login to apply the new duration
-    setTimeout(async () => {
+    sessionRelogTimeoutRef.current = setTimeout(() => {
       logout()
       // Wait a bit for logout to complete, then trigger login
-      setTimeout(async () => {
+      sessionRelogTimeoutRef.current = setTimeout(async () => {
+        sessionRelogTimeoutRef.current = null
         try {
           await login()
         } catch (error) {
@@ -165,6 +186,14 @@ const SettingsPage = () => {
   const [isRegistering, setIsRegistering] = useState(false)
   const [isRegisterUsernameInvalid, setIsRegisterUsernameInvalid] = useState(false)
 
+  // AI Inspection feature (disabled)
+  // const [isInspecting, setIsInspecting] = useState(false)
+  // const [securityReport, setSecurityReport] = useState<{
+  //   report: string
+  //   analyzedFiles: string[]
+  //   appUrl: string
+  // } | null>(null)
+
   const {
     isAuthenticated,
     user,
@@ -181,7 +210,32 @@ const SettingsPage = () => {
     generateGuardianInvite,
     recoverFromGuardians,
     clearSocialRecoveryConfig,
+    setPersistentSessionDuration,
+    hasPersistentSession,
   } = useW3PK()
+
+  // null = unknown, true = a persistent session blob exists, false = none —
+  // when authenticated and false, the authenticator likely lacks WebAuthn
+  // PRF support and "Remember Me" is unavailable on this device
+  const [persistentSessionStored, setPersistentSessionStored] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return
+    }
+    let cancelled = false
+    hasPersistentSession()
+      .then(stored => {
+        if (!cancelled) setPersistentSessionStored(stored)
+      })
+      .catch(() => {
+        if (!cancelled) setPersistentSessionStored(null)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
   const validateUsername = (input: string): boolean => {
     if (!input.trim()) {
@@ -204,8 +258,8 @@ const SettingsPage = () => {
   const handleRegister = async () => {
     if (!registerUsername.trim()) {
       toaster.create({
-        title: 'Username Required',
-        description: 'Please enter a username to register.',
+        title: t.header.usernameRequiredTitle,
+        description: t.header.usernameRequiredDescription,
         type: 'warning',
         duration: 3000,
       })
@@ -238,8 +292,8 @@ const SettingsPage = () => {
       onRegisterModalClose()
 
       toaster.create({
-        title: 'Registration Successful',
-        description: 'Your new account has been created.',
+        title: t.settings.registrationSuccessTitle,
+        description: t.settings.registrationSuccessDescription,
         type: 'success',
         duration: 5000,
       })
@@ -248,8 +302,8 @@ const SettingsPage = () => {
 
       // Show user-friendly error message
       toaster.create({
-        title: 'Registration Failed',
-        description: error.message || 'Unable to complete registration. Please try again.',
+        title: t.settings.registrationFailedTitle,
+        description: error.message || t.settings.registrationFailedDefaultDescription,
         type: 'error',
         duration: 8000,
       })
@@ -272,16 +326,16 @@ const SettingsPage = () => {
       setLocalStorageData(data)
 
       toaster.create({
-        title: 'LocalStorage Inspected',
-        description: `Found ${data.length} items. Scroll down to see results.`,
+        title: t.settings.localStorageInspectedTitle,
+        description: t.settings.localStorageInspectedDescription(data.length),
         type: 'success',
         duration: 3000,
       })
     } catch (error) {
       console.error('Error inspecting localStorage:', error)
       toaster.create({
-        title: 'Error',
-        description: 'Failed to inspect localStorage',
+        title: t.settings.genericErrorTitle,
+        description: t.settings.failedInspectLocalStorage,
         type: 'error',
         duration: 3000,
       })
@@ -298,16 +352,16 @@ const SettingsPage = () => {
 
       const totalRecords = data.reduce((sum, db) => sum + db.records.length, 0)
       toaster.create({
-        title: 'IndexedDB Inspected',
-        description: `Found ${data.length} database(s) with ${totalRecords} record(s). Scroll down to see results.`,
+        title: t.settings.indexedDBInspectedTitle,
+        description: t.settings.indexedDBInspectedDescription(data.length, totalRecords),
         type: 'success',
         duration: 3000,
       })
     } catch (error) {
       console.error('Error inspecting IndexedDB:', error)
       toaster.create({
-        title: 'Error',
-        description: 'Failed to inspect IndexedDB',
+        title: t.settings.genericErrorTitle,
+        description: t.settings.failedInspectIndexedDB,
         type: 'error',
         duration: 3000,
       })
@@ -323,15 +377,15 @@ const SettingsPage = () => {
       setLocalStorageData(updatedData)
 
       toaster.create({
-        title: 'Item Cleared',
-        description: `Removed "${key}" from localStorage`,
+        title: t.settings.itemClearedTitle,
+        description: t.settings.itemClearedDescription(key),
         type: 'success',
         duration: 2000,
       })
     } else {
       toaster.create({
-        title: 'Error',
-        description: `Failed to clear "${key}"`,
+        title: t.settings.genericErrorTitle,
+        description: t.settings.failedClearItem(key),
         type: 'error',
         duration: 3000,
       })
@@ -355,15 +409,15 @@ const SettingsPage = () => {
       setIndexedDBData(updatedData)
 
       toaster.create({
-        title: 'Record Cleared',
-        description: `Removed record from ${dbName}/${storeName}`,
+        title: t.settings.recordClearedTitle,
+        description: t.settings.recordClearedDescription(dbName, storeName),
         type: 'success',
         duration: 2000,
       })
     } else {
       toaster.create({
-        title: 'Error',
-        description: 'Failed to clear record',
+        title: t.settings.genericErrorTitle,
+        description: t.settings.failedClearRecord,
         type: 'error',
         duration: 3000,
       })
@@ -391,14 +445,15 @@ const SettingsPage = () => {
   }, [user])
 
   useEffect(() => {
-    loadAccounts()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadAccounts()
   }, [loadAccounts])
 
   useEffect(() => {
     const isValid = validateUsername(registerUsername)
-    if (isValid) {
-      setIsRegisterUsernameInvalid(false)
-    }
+    if (!isValid) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsRegisterUsernameInvalid(false)
   }, [registerUsername])
 
   useEffect(() => {
@@ -418,8 +473,8 @@ const SettingsPage = () => {
         } catch (error) {
           console.error('Failed to load addresses:', error)
           toaster.create({
-            title: 'Error loading addresses',
-            description: (error as Error).message || 'Failed to derive wallet addresses',
+            title: t.settings.errorLoadingAddressesTitle,
+            description: (error as Error).message || t.settings.failedDeriveAddresses,
             type: 'error',
             duration: 5000,
           })
@@ -446,8 +501,8 @@ const SettingsPage = () => {
         } catch (error) {
           console.error('Error loading backup status:', error)
           toaster.create({
-            title: 'Error loading backup status',
-            description: (error as Error).message || 'Failed to check security status',
+            title: t.settings.errorLoadingBackupStatusTitle,
+            description: (error as Error).message || t.settings.failedCheckSecurityStatus,
             type: 'error',
             duration: 5000,
           })
@@ -462,10 +517,10 @@ const SettingsPage = () => {
   }, [isAuthenticated, user])
 
   useEffect(() => {
-    if (isAuthenticated && getSocialRecoveryConfig) {
-      const config = getSocialRecoveryConfig()
-      setSocialRecoveryConfig(config)
-    }
+    if (!isAuthenticated || !getSocialRecoveryConfig) return
+    const config = getSocialRecoveryConfig()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSocialRecoveryConfig(config)
   }, [isAuthenticated, getSocialRecoveryConfig])
 
   const handleDeleteAccount = (account: StoredAccount) => {
@@ -503,8 +558,8 @@ const SettingsPage = () => {
         })
 
         toaster.create({
-          title: 'Account Removed',
-          description: `Account ${accountToDelete.username} has been removed from this device.`,
+          title: t.settings.accountRemovedTitle,
+          description: t.settings.accountRemovedDescription(accountToDelete.username),
           type: 'success',
           duration: 3000,
         })
@@ -512,8 +567,8 @@ const SettingsPage = () => {
         // If we deleted the current user's account, log them out
         if (user && user.ethereumAddress === accountToDelete.ethereumAddress) {
           toaster.create({
-            title: 'Logging out',
-            description: 'You removed your current account. Logging out...',
+            title: t.settings.loggingOutTitle,
+            description: t.settings.loggingOutDescription,
             type: 'info',
             duration: 2000,
           })
@@ -527,8 +582,8 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error deleting account:', error)
       toaster.create({
-        title: 'Error',
-        description: 'Failed to remove account. Please try again.',
+        title: t.settings.genericErrorTitle,
+        description: t.settings.failedRemoveAccount,
         type: 'error',
         duration: 5000,
       })
@@ -561,8 +616,8 @@ const SettingsPage = () => {
         setShowRestorePasswordModal(true)
       } catch (error) {
         toaster.create({
-          title: 'Error reading file',
-          description: (error as Error).message || 'Failed to read backup file',
+          title: t.settings.errorReadingFileTitle,
+          description: (error as Error).message || t.settings.failedReadBackupFile,
           type: 'error',
           duration: 5000,
         })
@@ -576,7 +631,7 @@ const SettingsPage = () => {
 
     if (!selectedBackupFile) {
       toaster.create({
-        title: 'No backup file selected',
+        title: t.settings.noBackupFileSelectedTitle,
         type: 'error',
         duration: 3000,
       })
@@ -595,9 +650,8 @@ const SettingsPage = () => {
           backupToRestore = encryptedContent
         } else if (!backupObj.version && (backupObj.encrypted || backupObj.mnemonic)) {
           toaster.create({
-            title: 'Incompatible Backup Version',
-            description:
-              'This backup was created with an older version of w3pk. Please create a new backup with the current version.',
+            title: t.settings.incompatibleBackupTitle,
+            description: t.settings.incompatibleBackupDescription,
             type: 'warning',
             duration: 8000,
           })
@@ -621,8 +675,10 @@ const SettingsPage = () => {
       const result = await restoreFromBackup(backupToRestore, password)
 
       toaster.create({
-        title: 'Wallet Restored!',
-        description: `Successfully restored and overwrote wallet: ${result.ethereumAddress.slice(0, 6)}...${result.ethereumAddress.slice(-4)}`,
+        title: t.settings.walletRestoredTitle,
+        description: t.settings.walletRestoredDescription(
+          `${result.ethereumAddress.slice(0, 6)}...${result.ethereumAddress.slice(-4)}`
+        ),
         type: 'success',
         duration: 5000,
       })
@@ -638,8 +694,8 @@ const SettingsPage = () => {
   const handleRestoreWithUsername = async () => {
     if (!restoreUsername.trim()) {
       toaster.create({
-        title: 'Username Required',
-        description: 'Please enter a username to register with the restored wallet.',
+        title: t.header.usernameRequiredTitle,
+        description: t.settings.usernameRequiredRestoreDescription,
         type: 'warning',
         duration: 3000,
       })
@@ -666,8 +722,10 @@ const SettingsPage = () => {
       const result = await registerWithBackupFile(backupData, password, restoreUsername.trim())
 
       toaster.create({
-        title: 'Wallet Restored & Registered!',
-        description: `Successfully restored and registered wallet: ${result.address.slice(0, 6)}...${result.address.slice(-4)}`,
+        title: t.settings.walletRestoredRegisteredTitle,
+        description: t.settings.walletRestoredRegisteredDescription(
+          `${result.address.slice(0, 6)}...${result.address.slice(-4)}`
+        ),
         type: 'success',
         duration: 5000,
       })
@@ -688,6 +746,76 @@ const SettingsPage = () => {
     setShowRestorePasswordModal(false)
     setSelectedBackupFile(null)
   }
+
+  // AI Inspection feature (disabled)
+  // const handleInspect = async () => {
+  //   setIsInspecting(true)
+  //   console.log('🔍 W3PK Security Inspection Starting...')
+
+  //   try {
+  //     const result = await inspect({
+  //       focusMode: 'transactions',
+  //     })
+
+  //     console.log('✅ Security report generated')
+  //     console.log(`Analyzed ${result.analyzedFiles.length} files from ${result.appUrl}`)
+
+  //     // Store report and display on page
+  //     setSecurityReport(result)
+
+  //     // Also log to console
+  //     try {
+  //       const parsed = JSON.parse(result.report)
+  //       console.log('📋 SECURITY REPORT')
+  //       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+  //       console.log(parsed.output || result.report)
+  //       console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  //     } catch {
+  //       console.log('📋 SECURITY REPORT')
+  //       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+  //       console.log(result.report)
+  //       console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  //     }
+
+  //     toaster.create({
+  //       title: t.settings.securityReportGeneratedTitle,
+  //       description: t.settings.securityReportGeneratedDescription,
+  //       type: 'success',
+  //       duration: 5000,
+  //     })
+  //   } catch (error: any) {
+  //     console.error('❌ Inspection failed:', error)
+  //     toaster.create({
+  //       title: t.settings.inspectionFailedTitle,
+  //       description: t.settings.inspectionFailedDescription,
+  //       type: 'error',
+  //       duration: 8000,
+  //     })
+  //   } finally {
+  //     setIsInspecting(false)
+  //   }
+  // }
+
+  // // Expose inspect to window for console access
+  // useEffect(() => {
+  //   if (typeof window !== 'undefined') {
+  //     ;(window as any).w3pk = {
+  //       ...(window as any).w3pk,
+  //       inspect: async () => {
+  //         console.log('🔍 W3PK Security Inspection Starting...')
+  //         const result = await inspect({ focusMode: 'transactions' })
+  //         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  //         console.log('📋 SECURITY REPORT')
+  //         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+  //         console.log(result.report)
+  //         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  //         console.log(`✅ Analyzed ${result.analyzedFiles.length} files`)
+  //         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  //         return result
+  //       },
+  //     }
+  //   }
+  // }, [])
 
   if (!isAuthenticated || !getBackupStatus || !createBackup) {
     const browserInfo = detectBrowser()
@@ -713,12 +841,12 @@ const SettingsPage = () => {
           <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
             <HStack mb={4}>
               <Icon as={MdInfo} color={brandColors.primary} boxSize={6} />
-              <Heading size="md">Browser Info</Heading>
+              <Heading size="md">{t.settings.browserInfoHeading}</Heading>
             </HStack>
             <VStack align="stretch" gap={3}>
               <HStack justify="space-between">
                 <Text fontSize="sm" color="gray.400">
-                  Browser:
+                  {t.settings.browserLabel}
                 </Text>
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {browserInfo.name}
@@ -726,7 +854,7 @@ const SettingsPage = () => {
               </HStack>
               <HStack justify="space-between">
                 <Text fontSize="sm" color="gray.400">
-                  Version:
+                  {t.settings.versionLabel}
                 </Text>
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {browserInfo.fullVersion || browserInfo.version}
@@ -734,7 +862,7 @@ const SettingsPage = () => {
               </HStack>
               <HStack justify="space-between">
                 <Text fontSize="sm" color="gray.400">
-                  Operating System:
+                  {t.settings.osLabel}
                 </Text>
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {browserInfo.os}
@@ -742,15 +870,15 @@ const SettingsPage = () => {
               </HStack>
               <HStack justify="space-between">
                 <Text fontSize="sm" color="gray.400">
-                  WebAuthn Support:
+                  {t.settings.webauthnSupportLabel}
                 </Text>
                 <Badge colorPalette={webAuthnAvailable ? 'green' : 'red'}>
-                  {webAuthnAvailable ? 'Available' : 'Not Available'}
+                  {webAuthnAvailable ? t.settings.available : t.settings.notAvailable}
                 </Badge>
               </HStack>
               <HStack justify="space-between">
                 <Text fontSize="sm" color="gray.400">
-                  Compatibility:
+                  {t.settings.compatibilityLabel}
                 </Text>
                 <Badge
                   colorPalette={
@@ -762,10 +890,10 @@ const SettingsPage = () => {
                   }
                 >
                   {browserInfo.isSupported && !browserInfo.hasKnownIssues
-                    ? 'Fully Supported'
+                    ? t.settings.fullySupported
                     : browserInfo.hasKnownIssues
-                      ? 'Known Issues'
-                      : 'Not Supported'}
+                      ? t.settings.knownIssues
+                      : t.settings.notSupported}
                 </Badge>
               </HStack>
             </VStack>
@@ -786,10 +914,10 @@ const SettingsPage = () => {
               <Box fontSize="sm">
                 <Text fontWeight="bold" mb={1}>
                   {alertStatus === 'error'
-                    ? 'Browser Not Supported'
+                    ? t.settings.browserNotSupportedTitle
                     : alertStatus === 'warning'
-                      ? 'Known Issues Detected'
-                      : 'Recommendation'}
+                      ? t.settings.knownIssuesTitle
+                      : t.settings.recommendationTitle}
                 </Text>
                 <Text fontSize="sm">{browserInfo.recommendation}</Text>
               </Box>
@@ -800,18 +928,15 @@ const SettingsPage = () => {
             <Box p={4} bg="red.900/90" borderRadius="lg">
               <Box fontSize="sm">
                 <Text fontWeight="bold" mb={1}>
-                  WebAuthn Not Available
+                  {t.settings.webauthnNotAvailableTitle}
                 </Text>
-                <Text fontSize="sm">
-                  Your browser does not support WebAuthn, which is required for w3pk authentication.
-                  Please update your browser or use a supported browser:
-                </Text>
+                <Text fontSize="sm">{t.settings.webauthnNotAvailableText}</Text>
                 <ListRoot gap={1} mt={2} ml={4} fontSize="xs">
-                  <ListItem>Chrome 67+ (May 2018)</ListItem>
-                  <ListItem>Firefox 60+ (May 2018)</ListItem>
-                  <ListItem>Safari 14+ (September 2020)</ListItem>
-                  <ListItem>Edge 18+ (November 2018)</ListItem>
-                  <ListItem>Samsung Internet 11+ (February 2020)</ListItem>
+                  <ListItem>{t.settings.browserChrome}</ListItem>
+                  <ListItem>{t.settings.browserFirefox}</ListItem>
+                  <ListItem>{t.settings.browserSafari}</ListItem>
+                  <ListItem>{t.settings.browserEdge}</ListItem>
+                  <ListItem>{t.settings.browserSamsung}</ListItem>
                 </ListRoot>
               </Box>
             </Box>
@@ -820,7 +945,7 @@ const SettingsPage = () => {
           {browserInfo.os === 'Android' && (
             <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
               <Heading size="sm" mb={3} color={brandColors.primary}>
-                Recommended Browsers for Android
+                {t.settings.androidRecommendedHeading}
               </Heading>
               <ListRoot gap={2} fontSize="sm">
                 <ListItem>
@@ -829,10 +954,7 @@ const SettingsPage = () => {
                       as={browserInfo.name === 'Samsung Internet' ? MdCheckCircle : MdInfo}
                       color={browserInfo.name === 'Samsung Internet' ? 'green.400' : 'gray.400'}
                     />
-                    <Text color="gray.300">
-                      <strong>Samsung Internet</strong> (Best for Samsung devices) - ✅ Confirmed
-                      working
-                    </Text>
+                    <Text color="gray.300">{t.settings.samsungInternetNote}</Text>
                   </HStack>
                 </ListItem>
                 <ListItem>
@@ -841,9 +963,7 @@ const SettingsPage = () => {
                       as={browserInfo.name === 'Chrome' ? MdCheckCircle : MdInfo}
                       color={browserInfo.name === 'Chrome' ? 'green.400' : 'gray.400'}
                     />
-                    <Text color="gray.300">
-                      <strong>Chrome</strong> - ✅ Reliable
-                    </Text>
+                    <Text color="gray.300">{t.settings.chromeNote}</Text>
                   </HStack>
                 </ListItem>
                 <ListItem>
@@ -852,17 +972,13 @@ const SettingsPage = () => {
                       as={browserInfo.name === 'Edge' ? MdCheckCircle : MdInfo}
                       color={browserInfo.name === 'Edge' ? 'green.400' : 'gray.400'}
                     />
-                    <Text color="gray.300">
-                      <strong>Edge</strong> - ✅ Reliable
-                    </Text>
+                    <Text color="gray.300">{t.settings.edgeNote}</Text>
                   </HStack>
                 </ListItem>
                 <ListItem>
                   <HStack>
                     <Icon as={MdWarning} color="yellow.400" />
-                    <Text color="gray.300">
-                      <strong>Firefox Mobile</strong> - ⚠️ Avoid (known passkey persistence issues)
-                    </Text>
+                    <Text color="gray.300">{t.settings.firefoxMobileNote}</Text>
                   </HStack>
                 </ListItem>
               </ListRoot>
@@ -872,13 +988,23 @@ const SettingsPage = () => {
           <BuildVerification />
 
           {/* Restore from Backup - Available without authentication */}
-          <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
+          <Box
+            id="restore-backup"
+            bg="gray.900"
+            p={6}
+            borderRadius="lg"
+            border="1px solid"
+            borderColor="gray.700"
+          >
             <HStack mb={4}>
               <Icon as={FiUpload} color={brandColors.primary} boxSize={6} />
-              <Heading size="md">Restore from Backup</Heading>
+              <Heading size="md">{t.settings.restoreBackupHeading}</Heading>
             </HStack>
             <Text fontSize="sm" color="gray.400" mb={4}>
-              If you have a backup file, you can restore your wallet without logging in first.
+              {t.settings.restoreBackupDescription}
+            </Text>
+            <Text fontSize="sm" color="gray.400" mb={4}>
+              {t.settings.restoreBackupSyncHint}
             </Text>
             <Button
               bg={brandColors.primary}
@@ -887,12 +1013,12 @@ const SettingsPage = () => {
               onClick={handleRestoreBackup}
               loading={isRestoring}
               spinner={<Spinner size="200px" />}
-              loadingText="Restoring..."
+              loadingText={t.settings.restoringText}
               disabled={isRestoring}
               width="full"
             >
               <Icon as={FiUpload} mr={2} />
-              Restore from Backup File
+              {t.settings.restoreBackupButton}
             </Button>
           </Box>
 
@@ -922,45 +1048,195 @@ const SettingsPage = () => {
 
           <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
             <Heading size="sm" mb={3} color={brandColors.primary}>
-              Debug & Inspect Storage
+              {t.settings.debugStorageHeading}
             </Heading>
             <Text fontSize="sm" color="gray.400" mb={4}>
-              Inspect browser storage and activity logs
+              {t.settings.debugStorageDescription}
             </Text>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
               <Button
                 onClick={handleInspectLocalStorage}
                 loading={isInspectingLocalStorage}
-                loadingText="Inspecting..."
+                loadingText={t.settings.inspectingText}
                 variant="outline"
                 colorPalette="purple"
                 size="sm"
               >
                 <Icon as={FiHardDrive} mr={2} />
-                Inspect LocalStorage
+                {t.settings.inspectLocalStorageButton}
               </Button>
               <Button
                 onClick={handleInspectIndexedDB}
                 loading={isInspectingIndexedDB}
-                loadingText="Inspecting..."
+                loadingText={t.settings.inspectingText}
                 variant="outline"
                 colorPalette="purple"
                 size="sm"
               >
                 <Icon as={FiDatabase} mr={2} />
-                Inspect IndexedDB
+                {t.settings.inspectIndexedDBButton}
               </Button>
             </SimpleGrid>
           </Box>
+
+          {/* AI Inspection feature (disabled)
+          <Box bg="gray.900" p={6} borderRadius="lg" border="2px solid" borderColor="purple.500">
+            {!securityReport ? (
+              <>
+                <Text fontSize="sm" color="gray.400" mb={4}>
+                  {t.settings.inspectSecurityDescriptionSmall}
+                </Text>
+                <Button
+                  bg="purple.500"
+                  color="white"
+                  _hover={{ bg: 'purple.600' }}
+                  onClick={handleInspect}
+                  disabled={isInspecting}
+                  size="sm"
+                  width="full"
+                >
+                  {isInspecting ? (
+                    <HStack>
+                      <Spinner size="sm" />
+                      <Text>{t.settings.inspectingText}</Text>
+                    </HStack>
+                  ) : (
+                    <HStack>
+                      <Icon as={FiShield} />
+                      <Text>{t.settings.inspectSecurityButton}</Text>
+                    </HStack>
+                  )}
+                </Button>
+                <Text fontSize="xs" color="gray.500" mt={3}>
+                  {t.settings.consoleCommandLabel}{' '}
+                  <Code colorPalette="purple" fontSize="xs">
+                    await w3pk.inspect()
+                  </Code>
+                </Text>
+              </>
+            ) : (
+              <VStack align="stretch" gap={4}>
+                <HStack justify="space-between">
+                  <Text fontSize="sm" color="gray.400">
+                    <strong>{t.settings.filesAnalyzedLabel}</strong>{' '}
+                    {securityReport.analyzedFiles.length}
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    colorPalette="purple"
+                    onClick={() => setSecurityReport(null)}
+                  >
+                    {t.settings.clearReportButton}
+                  </Button>
+                </HStack>
+
+                <Box
+                  bg="gray.950"
+                  p={4}
+                  borderRadius="md"
+                  border="1px solid"
+                  borderColor="gray.700"
+                  maxH="600px"
+                  overflowY="auto"
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ children }: any) => (
+                        <Text fontSize="2xl" fontWeight="bold" mb={3} color="white">
+                          {children}
+                        </Text>
+                      ),
+                      h2: ({ children }: any) => (
+                        <Text fontSize="xl" fontWeight="bold" mt={4} mb={2} color="blue.300">
+                          {children}
+                        </Text>
+                      ),
+                      h3: ({ children }: any) => (
+                        <Text fontSize="lg" fontWeight="semibold" mt={3} mb={2} color="purple.300">
+                          {children}
+                        </Text>
+                      ),
+                      h4: ({ children }: any) => (
+                        <Text fontSize="md" fontWeight="semibold" mt={2} mb={1} color="purple.200">
+                          {children}
+                        </Text>
+                      ),
+                      p: ({ children }: any) => (
+                        <Box mb={2} color="gray.300" lineHeight="tall" fontSize="sm">
+                          {children}
+                        </Box>
+                      ),
+                      pre: ({ children }: any) => (
+                        <Box
+                          as="pre"
+                          bg="black"
+                          p={3}
+                          borderRadius="md"
+                          overflowX="auto"
+                          mb={3}
+                          fontSize="xs"
+                        >
+                          {children}
+                        </Box>
+                      ),
+                      code: ({ inline, children }: any) => {
+                        if (inline) {
+                          return (
+                            <Code colorPalette="purple" fontSize="xs" px={1}>
+                              {children}
+                            </Code>
+                          )
+                        }
+                        return (
+                          <Text as="code" color="green.300" fontFamily="mono" display="block">
+                            {children}
+                          </Text>
+                        )
+                      },
+                      ul: ({ children }: any) => (
+                        <Box as="ul" pl={5} mb={2} color="gray.300" fontSize="sm">
+                          {children}
+                        </Box>
+                      ),
+                      li: ({ children }: any) => (
+                        <Text as="li" mb={1} color="gray.300" fontSize="sm">
+                          {children}
+                        </Text>
+                      ),
+                      strong: ({ children }: any) => (
+                        <Text as="strong" fontWeight="bold" color="blue.200">
+                          {children}
+                        </Text>
+                      ),
+                    }}
+                  >
+                    {(() => {
+                      try {
+                        const parsed = JSON.parse(securityReport.report)
+                        return parsed.output || securityReport.report
+                      } catch {
+                        return securityReport.report
+                      }
+                    })()}
+                  </ReactMarkdown>
+                </Box>
+              </VStack>
+            )}
+          </Box>
+          */}
 
           {localStorageData.length > 0 && (
             <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="purple.600">
               <HStack mb={4} justify="space-between">
                 <HStack>
                   <Icon as={FiHardDrive} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">LocalStorage Results</Heading>
+                  <Heading size="md">{t.settings.localStorageResultsHeading}</Heading>
                 </HStack>
-                <Badge colorPalette="purple">{localStorageData.length} items</Badge>
+                <Badge colorPalette="purple">
+                  {t.settings.itemsCount(localStorageData.length)}
+                </Badge>
               </HStack>
               <VStack align="stretch" gap={3}>
                 {localStorageData.map((item, index) => (
@@ -980,7 +1256,7 @@ const SettingsPage = () => {
                         <HStack gap={2}>
                           {item.encrypted && (
                             <Badge colorPalette="orange" fontSize="xs">
-                              Encrypted
+                              {t.settings.encryptedBadge}
                             </Badge>
                           )}
                           <Badge
@@ -990,7 +1266,7 @@ const SettingsPage = () => {
                             {item.type}
                           </Badge>
                           <IconButton
-                            aria-label="Clear item"
+                            aria-label={t.settings.clearItemAria}
                             size="xs"
                             colorPalette="red"
                             variant="ghost"
@@ -1026,9 +1302,11 @@ const SettingsPage = () => {
               <HStack mb={4} justify="space-between">
                 <HStack>
                   <Icon as={FiDatabase} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">IndexedDB Results</Heading>
+                  <Heading size="md">{t.settings.indexedDBResultsHeading}</Heading>
                 </HStack>
-                <Badge colorPalette="purple">{indexedDBData.length} database(s)</Badge>
+                <Badge colorPalette="purple">
+                  {t.settings.databasesCount(indexedDBData.length)}
+                </Badge>
               </HStack>
               <VStack align="stretch" gap={4}>
                 {indexedDBData.map((db, dbIndex) => (
@@ -1051,11 +1329,11 @@ const SettingsPage = () => {
                       </HStack>
 
                       <Text fontSize="xs" color="gray.400">
-                        Stores: {db.stores.join(', ')}
+                        {t.settings.storesLabel} {db.stores.join(', ')}
                       </Text>
 
                       <Text fontSize="xs" color="gray.400">
-                        Records: {db.records.length}
+                        {t.settings.recordsLabel} {db.records.length}
                       </Text>
 
                       {db.records.length > 0 && (
@@ -1071,10 +1349,10 @@ const SettingsPage = () => {
                             >
                               <HStack justify="space-between" mb={2}>
                                 <Text fontSize="xs" color="gray.400">
-                                  Store: {record.store} | Key: {record.key}
+                                  {t.settings.storeKeyLabel(record.store, record.key)}
                                 </Text>
                                 <IconButton
-                                  aria-label="Clear record"
+                                  aria-label={t.settings.clearRecordAria}
                                   size="xs"
                                   colorPalette="red"
                                   variant="ghost"
@@ -1106,8 +1384,8 @@ const SettingsPage = () => {
           isOpen={showRestorePasswordModal}
           onClose={handleRestoreModalClose}
           onSubmit={handleRestorePasswordSubmit}
-          title={`Enter Password to Restore Backup`}
-          description={`Please enter the password you used when creating this backup file.`}
+          title={t.settings.restoreBackupModalTitle}
+          description={t.settings.restoreBackupModalDescription}
         />
 
         {/* Registration Modal - Available without authentication */}
@@ -1120,13 +1398,12 @@ const SettingsPage = () => {
             <Dialog.Positioner>
               <Dialog.Content p={6}>
                 <Dialog.Header>
-                  <Dialog.Title>Register New Account</Dialog.Title>
+                  <Dialog.Title>{t.header.registerTitle}</Dialog.Title>
                 </Dialog.Header>
                 <Dialog.Body pt={4}>
                   <VStack gap={4}>
                     <Text fontSize="sm" color="gray.400">
-                      An Ethereum wallet will be created and securely stored on your device,
-                      protected by your biometric or PIN thanks to{' '}
+                      {t.header.walletInfoText}{' '}
                       <ChakraLink
                         href={
                           'https://github.com/w3hc/w3pk/blob/main/src/auth/register.ts#L17-L102'
@@ -1139,7 +1416,7 @@ const SettingsPage = () => {
                       </ChakraLink>
                       .
                     </Text>
-                    <Field invalid={isRegisterUsernameInvalid} label="Username">
+                    <Field invalid={isRegisterUsernameInvalid} label={t.header.usernameLabel}>
                       <Input
                         id="username-input"
                         aria-describedby={
@@ -1152,7 +1429,7 @@ const SettingsPage = () => {
                         }
                         value={registerUsername}
                         onChange={e => setRegisterUsername(e.target.value)}
-                        placeholder="Enter your username"
+                        placeholder={t.header.usernamePlaceholder}
                         pl={3}
                         onKeyDown={e => {
                           if (e.key === 'Enter' && registerUsername.trim()) {
@@ -1162,8 +1439,7 @@ const SettingsPage = () => {
                       />
                       {isRegisterUsernameInvalid && registerUsername.trim() && (
                         <Field.ErrorText id="username-error">
-                          Username must be 3-50 characters long and contain only letters, numbers,
-                          underscores, and hyphens. It must start and end with a letter or number.
+                          {t.header.usernameError}
                         </Field.ErrorText>
                       )}
                     </Field>
@@ -1172,7 +1448,7 @@ const SettingsPage = () => {
 
                 <Dialog.Footer gap={3} pt={6}>
                   <Dialog.ActionTrigger asChild>
-                    <Button variant="outline">Cancel</Button>
+                    <Button variant="outline">{t.common.cancel}</Button>
                   </Dialog.ActionTrigger>
                   <Button
                     colorPalette="blue"
@@ -1180,7 +1456,7 @@ const SettingsPage = () => {
                     disabled={!registerUsername.trim()}
                   >
                     {isRegistering && <Spinner size="42px" />}
-                    {!isRegistering && 'Create Account'}
+                    {!isRegistering && t.header.createAccount}
                   </Button>
                 </Dialog.Footer>
                 <Dialog.CloseTrigger asChild>
@@ -1195,8 +1471,8 @@ const SettingsPage = () => {
           isOpen={showRestorePasswordModal}
           onClose={handleRestoreModalClose}
           onSubmit={handleRestorePasswordSubmit}
-          title={`Enter Password to Restore Backup`}
-          description={`Please enter the password you used when creating this backup file.`}
+          title={t.settings.restoreBackupModalTitle}
+          description={t.settings.restoreBackupModalDescription}
         />
 
         {/* Username Modal for Restore when no credentials exist */}
@@ -1219,15 +1495,14 @@ const SettingsPage = () => {
             <Dialog.Positioner>
               <Dialog.Content p={6}>
                 <Dialog.Header>
-                  <Dialog.Title>Choose Username for Restored Wallet</Dialog.Title>
+                  <Dialog.Title>{t.settings.chooseUsernameModalTitle}</Dialog.Title>
                 </Dialog.Header>
                 <Dialog.Body pt={4}>
                   <VStack gap={4}>
                     <Text fontSize="sm" color="gray.400">
-                      No existing credentials found on this device. Please choose a username to
-                      register your restored wallet with a new passkey.
+                      {t.settings.chooseUsernameModalDescription}
                     </Text>
-                    <Field invalid={isRestoreUsernameInvalid} label="Username">
+                    <Field invalid={isRestoreUsernameInvalid} label={t.header.usernameLabel}>
                       <Input
                         id="restore-username-input"
                         aria-describedby={
@@ -1235,7 +1510,7 @@ const SettingsPage = () => {
                             ? 'restore-username-error'
                             : undefined
                         }
-                        placeholder="Enter your username"
+                        placeholder={t.header.usernamePlaceholder}
                         value={restoreUsername}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           setRestoreUsername(e.target.value)
@@ -1252,8 +1527,7 @@ const SettingsPage = () => {
                       />
                       {isRestoreUsernameInvalid && restoreUsername.trim() && (
                         <Text id="restore-username-error" fontSize="sm" color="red.400" mt={1}>
-                          Username must be 3-50 characters, alphanumeric with underscores/hyphens,
-                          and start/end with alphanumeric.
+                          {t.settings.usernameFormatError}
                         </Text>
                       )}
                     </Field>
@@ -1272,7 +1546,7 @@ const SettingsPage = () => {
                         delete (window as any)._restoreBackup
                       }}
                     >
-                      Cancel
+                      {t.common.cancel}
                     </Button>
                   </Dialog.CloseTrigger>
                   <Button
@@ -1281,10 +1555,10 @@ const SettingsPage = () => {
                     _hover={{ bg: brandColors.secondary }}
                     onClick={handleRestoreWithUsername}
                     loading={isRestoring}
-                    loadingText="Restoring & Registering..."
+                    loadingText={t.settings.restoringRegisteringText}
                     disabled={isRestoring || !restoreUsername.trim()}
                   >
-                    Restore & Register
+                    {t.settings.restoreRegisterButton}
                   </Button>
                 </Dialog.Footer>
               </Dialog.Content>
@@ -1315,14 +1589,14 @@ const SettingsPage = () => {
       }
 
       toaster.create({
-        title: 'Backup Status Retrieved.',
+        title: t.settings.backupStatusRetrievedTitle,
         type: 'info',
         duration: 3000,
       })
     } catch (error) {
       toaster.create({
-        title: 'Error retrieving status.',
-        description: (error as Error).message || 'An unexpected error occurred.',
+        title: t.settings.errorRetrievingStatusTitle,
+        description: (error as Error).message || t.settings.unexpectedErrorDescription,
         type: 'error',
         duration: 5000,
       })
@@ -1339,8 +1613,8 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error creating backup:', error)
       toaster.create({
-        title: 'Error creating backup.',
-        description: (error as Error).message || 'An unexpected error occurred.',
+        title: t.settings.errorCreatingBackupTitle,
+        description: (error as Error).message || t.settings.unexpectedErrorDescription,
         type: 'error',
         duration: 5000,
       })
@@ -1382,14 +1656,14 @@ const SettingsPage = () => {
       }
 
       toaster.create({
-        title: 'Backup Created Successfully!',
+        title: t.settings.backupCreatedTitle,
         type: 'success',
         duration: 3000,
       })
     } catch (error) {
       toaster.create({
-        title: 'Error creating backup.',
-        description: (error as Error).message || 'An unexpected error occurred.',
+        title: t.settings.errorCreatingBackupTitle,
+        description: (error as Error).message || t.settings.unexpectedErrorDescription,
         type: 'error',
         duration: 5000,
       })
@@ -1435,8 +1709,8 @@ const SettingsPage = () => {
   const handleAddGuardian = () => {
     if (!guardianName.trim()) {
       toaster.create({
-        title: 'Invalid Input',
-        description: 'Guardian name is required',
+        title: t.settings.invalidInputTitle,
+        description: t.settings.guardianNameRequiredDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1458,8 +1732,8 @@ const SettingsPage = () => {
   const handleSetupSocialRecovery = async () => {
     if (guardiansList.length < 2) {
       toaster.create({
-        title: 'Not Enough Guardians',
-        description: 'You need at least 2 guardians to set up social recovery',
+        title: t.settings.notEnoughGuardiansTitle,
+        description: t.settings.notEnoughGuardiansDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1468,8 +1742,8 @@ const SettingsPage = () => {
 
     if (threshold > guardiansList.length) {
       toaster.create({
-        title: 'Invalid Threshold',
-        description: 'Threshold cannot be greater than number of guardians',
+        title: t.settings.invalidThresholdTitle,
+        description: t.settings.invalidThresholdDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1482,8 +1756,11 @@ const SettingsPage = () => {
       setSocialRecoveryConfig(config)
 
       toaster.create({
-        title: 'Social Recovery Configured!',
-        description: `Successfully set up ${threshold}-of-${guardiansList.length} guardian recovery`,
+        title: t.settings.socialRecoveryConfiguredTitle,
+        description: t.settings.socialRecoveryConfiguredDescription(
+          threshold,
+          guardiansList.length
+        ),
         type: 'success',
         duration: 5000,
       })
@@ -1524,8 +1801,8 @@ const SettingsPage = () => {
   const handleAddRecoveryShare = () => {
     if (!currentShareInput.trim()) {
       toaster.create({
-        title: 'Invalid Input',
-        description: 'Please paste a guardian share code',
+        title: t.settings.invalidInputTitle,
+        description: t.settings.pleasePasteShareDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1547,8 +1824,8 @@ const SettingsPage = () => {
 
       if (isDuplicate) {
         toaster.create({
-          title: 'Duplicate Share',
-          description: 'This guardian share has already been added',
+          title: t.settings.duplicateShareTitle,
+          description: t.settings.duplicateShareDescription,
           type: 'warning',
           duration: 3000,
         })
@@ -1559,15 +1836,17 @@ const SettingsPage = () => {
       setCurrentShareInput('')
 
       toaster.create({
-        title: 'Share Added',
-        description: `Added share from ${parsed.guardianName || 'guardian'}`,
+        title: t.settings.shareAddedTitle,
+        description: t.settings.shareAddedDescription(
+          parsed.guardianName || t.settings.guardianFallback
+        ),
         type: 'success',
         duration: 2000,
       })
     } catch (error) {
       toaster.create({
-        title: 'Invalid Share Format',
-        description: 'Please paste a valid guardian share code (JSON format)',
+        title: t.settings.invalidShareFormatTitle,
+        description: t.settings.invalidShareFormatDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1581,8 +1860,8 @@ const SettingsPage = () => {
   const handleRecoverWallet = async () => {
     if (recoveryShares.length < 2) {
       toaster.create({
-        title: 'Not Enough Shares',
-        description: 'You need at least 2 guardian shares to recover your wallet',
+        title: t.settings.notEnoughSharesTitle,
+        description: t.settings.notEnoughSharesDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1591,13 +1870,51 @@ const SettingsPage = () => {
 
     setIsRecovering(true)
     try {
-      const result = await recoverFromGuardians(recoveryShares)
+      // Step 1: Recover the encrypted backup file from guardian shares
+      const { backupFileJson, ethereumAddress } = await recoverFromGuardians(recoveryShares)
+
+      // Step 2: Prompt for password to decrypt the backup file
+      const password = window.prompt(t.settings.recoveryPasswordPrompt)
+
+      if (!password) {
+        toaster.create({
+          title: t.passwordModal.passwordRequiredTitle,
+          description: t.settings.passwordRequiredRecoveryDescription,
+          type: 'error',
+          duration: 3000,
+        })
+        setIsRecovering(false)
+        return
+      }
+
+      // Step 3: Prompt for username for the new passkey registration
+      const username = window.prompt(
+        t.settings.recoveryUsernamePrompt(
+          `${ethereumAddress.slice(0, 6)}...${ethereumAddress.slice(-4)}`
+        )
+      )
+
+      if (!username) {
+        toaster.create({
+          title: t.header.usernameRequiredTitle,
+          description: t.settings.usernameRequiredRecoveryDescription,
+          type: 'error',
+          duration: 3000,
+        })
+        setIsRecovering(false)
+        return
+      }
+
+      // Step 4: Register with the recovered backup file
+      const result = await registerWithBackupFile(backupFileJson, password, username)
 
       toaster.create({
-        title: 'Wallet Recovered Successfully!',
-        description: `Your wallet has been recovered: ${result.ethereumAddress.slice(0, 6)}...${result.ethereumAddress.slice(-4)}`,
+        title: t.settings.walletRecoveredTitle,
+        description: t.settings.walletRecoveredDescription(
+          `${result.address.slice(0, 6)}...${result.address.slice(-4)}`
+        ),
         type: 'success',
-        duration: 5000,
+        duration: 8000,
       })
 
       // Clear recovery state
@@ -1606,7 +1923,7 @@ const SettingsPage = () => {
       setShowRecoverySection(false)
     } catch (error) {
       console.error('Recovery error:', error)
-      // Error toast already shown in recoverFromGuardians
+      // Error toast already shown in recoverFromGuardians or registerWithBackupFile
     } finally {
       setIsRecovering(false)
     }
@@ -1634,15 +1951,15 @@ const SettingsPage = () => {
         }
 
         toaster.create({
-          title: 'File Loaded',
-          description: 'Guardian share loaded from file. Click "Add Share" to add it.',
+          title: t.settings.fileLoadedTitle,
+          description: t.settings.fileLoadedDescription,
           type: 'info',
           duration: 3000,
         })
       } catch (error) {
         toaster.create({
-          title: 'Error reading file',
-          description: (error as Error).message || 'Failed to read guardian share file',
+          title: t.settings.errorReadingFileTitle,
+          description: (error as Error).message || t.settings.failedReadGuardianFile,
           type: 'error',
           duration: 3000,
         })
@@ -1654,8 +1971,8 @@ const SettingsPage = () => {
   const handleSaveQRDataToStorage = async () => {
     if (!parsedQRData || parsedQRData.error || !user) {
       toaster.create({
-        title: 'Cannot save',
-        description: 'Invalid QR data or user not authenticated',
+        title: t.settings.cannotSaveTitle,
+        description: t.settings.cannotSaveDescription,
         type: 'error',
         duration: 3000,
       })
@@ -1713,8 +2030,10 @@ const SettingsPage = () => {
 
         transaction.oncomplete = () => {
           toaster.create({
-            title: 'Wallet Linked Successfully!',
-            description: `Linked wallet ${parsedQRData.ethereumAddress.slice(0, 6)}...${parsedQRData.ethereumAddress.slice(-4)} to your passkey account`,
+            title: t.settings.walletLinkedTitle,
+            description: t.settings.walletLinkedDescription(
+              `${parsedQRData.ethereumAddress.slice(0, 6)}...${parsedQRData.ethereumAddress.slice(-4)}`
+            ),
             type: 'success',
             duration: 5000,
           })
@@ -1731,8 +2050,8 @@ const SettingsPage = () => {
     } catch (error) {
       console.error('Error saving QR data:', error)
       toaster.create({
-        title: 'Error saving wallet link',
-        description: (error as Error).message || 'Failed to save wallet sync data',
+        title: t.settings.errorSavingLinkTitle,
+        description: (error as Error).message || t.settings.failedSaveSyncData,
         type: 'error',
         duration: 5000,
       })
@@ -1747,7 +2066,7 @@ const SettingsPage = () => {
             {t.settings.title}
           </Heading>
           <Text fontSize="xl" color="gray.400" maxW="2xl" mx="auto">
-            Manage your accounts, backups, and recovery options
+            {t.settings.subtitle}
           </Text>
         </Box>
 
@@ -1789,7 +2108,7 @@ const SettingsPage = () => {
                 color: 'gray.300',
               }}
             >
-              Accounts
+              {t.settings.tabAccounts}
             </TabsTrigger>
             <TabsTrigger
               value="backup"
@@ -1818,7 +2137,7 @@ const SettingsPage = () => {
                 color: 'gray.300',
               }}
             >
-              Backup
+              {t.settings.tabBackup}
             </TabsTrigger>
             <TabsTrigger
               value="sync"
@@ -1847,7 +2166,7 @@ const SettingsPage = () => {
                 color: 'gray.300',
               }}
             >
-              Sync
+              {t.settings.tabSync}
             </TabsTrigger>
             <TabsTrigger
               value="recovery"
@@ -1876,7 +2195,7 @@ const SettingsPage = () => {
                 color: 'gray.300',
               }}
             >
-              Social recovery
+              {t.settings.tabRecovery}
             </TabsTrigger>
           </TabsList>
 
@@ -1884,10 +2203,10 @@ const SettingsPage = () => {
             <VStack gap={6} align="stretch">
               <Box>
                 <Heading as="h2" size="lg" mb={4}>
-                  Current account
+                  {t.settings.currentAccountHeading}
                 </Heading>
                 <Text fontSize="md" color="gray.400" mb={6}>
-                  This is your currently logged-in account.
+                  {t.settings.currentAccountDescription}
                 </Text>
               </Box>
 
@@ -1900,7 +2219,7 @@ const SettingsPage = () => {
                   border="1px solid"
                   borderColor="gray.700"
                 >
-                  <Text color="gray.400">No accounts found on this device.</Text>
+                  <Text color="gray.400">{t.settings.noAccounts}</Text>
                 </Box>
               ) : (
                 accounts.map(account => (
@@ -1927,11 +2246,11 @@ const SettingsPage = () => {
                             {account.displayName || account.username}
                           </Text>
                           {user?.ethereumAddress === account.ethereumAddress && (
-                            <Badge colorPalette="purple">Current</Badge>
+                            <Badge colorPalette="purple">{t.settings.currentBadge}</Badge>
                           )}
                         </HStack>
                         <Text fontSize="sm" color="gray.400" mb={2}>
-                          Username: {account.username}
+                          {t.settings.usernameLabel(account.username)}
                         </Text>
                         <Code
                           fontSize="xs"
@@ -1947,7 +2266,7 @@ const SettingsPage = () => {
                         </Code>
                       </Box>
                       <IconButton
-                        aria-label="Delete account"
+                        aria-label={t.settings.deleteAccountAria}
                         colorPalette="red"
                         variant="ghost"
                         size="sm"
@@ -1965,17 +2284,22 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiClock} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Keep my session alive</Heading>
+                  <Heading size="md">{t.settings.sessionHeading}</Heading>
                 </HStack>
                 <Text fontSize="sm" color="gray.400" mb={6}>
-                  Set how long your session should stay active. The duration timer resets every time
-                  you log in. This setting applies to STANDARD and YOLO modes only. STRICT and
-                  PRIMARY modes always require fresh authentication and do not use persistent
-                  sessions.
+                  {t.settings.sessionDescription}
                 </Text>
+                {isAuthenticated && persistentSessionStored === false && (
+                  <Box p={3} bg="yellow.900/90" borderRadius="md" mb={6}>
+                    <Text fontSize="xs" color="gray.200">
+                      {t.settings.noStoredSessionText}
+                    </Text>
+                  </Box>
+                )}
                 <SliderRoot
                   value={[persistentSessionDays]}
                   onValueChange={handleSessionDurationChange}
+                  onValueChangeEnd={handleSessionDurationChangeEnd}
                   min={1}
                   max={30}
                   step={1}
@@ -1983,10 +2307,10 @@ const SettingsPage = () => {
                 >
                   <HStack justify="space-between" mb={2}>
                     <SliderLabel fontSize="sm" fontWeight="medium">
-                      Session Duration
+                      {t.settings.sessionDurationLabel}
                     </SliderLabel>
                     <SliderValueText fontSize="sm" fontWeight="bold" color={brandColors.accent}>
-                      {persistentSessionDays} day{persistentSessionDays > 1 ? 's' : ''}
+                      {t.settings.dayLabel(persistentSessionDays)}
                     </SliderValueText>
                   </HStack>
                   <SliderControl>
@@ -2004,15 +2328,13 @@ const SettingsPage = () => {
                   </SliderControl>
                 </SliderRoot>
                 <HStack justify="space-between" mt={2} fontSize="xs" color="gray.500">
-                  <Text>1 day</Text>
-                  <Text>30 days</Text>
+                  <Text>{t.settings.oneDayLabel}</Text>
+                  <Text>{t.settings.thirtyDaysLabel}</Text>
                 </HStack>
                 <Box p={3} bg="blue.900/90" borderRadius="md" mt={4}>
                   <Text fontSize="xs" color="gray.300">
-                    <strong>How it works:</strong> Your session is encrypted with your WebAuthn
-                    credentials and stored securely in IndexedDB. The countdown starts fresh each
-                    time you log in. For example, with a 7-day duration, if you log in today, your
-                    session will expire 7 days from today.
+                    <strong>{t.settings.sessionHowItWorksTitle}</strong>{' '}
+                    {t.settings.sessionHowItWorksText}
                   </Text>
                 </Box>
               </Box>
@@ -2051,10 +2373,10 @@ const SettingsPage = () => {
               {/* Header */}
               <Box>
                 <Heading size="lg" mb={4}>
-                  Wallet Backup
+                  {t.settings.walletBackupHeading}
                 </Heading>
                 <Text color="gray.400" mb={6}>
-                  Create encrypted backups of your wallet to ensure you never lose access
+                  {t.settings.walletBackupDescription}
                 </Text>
               </Box>
 
@@ -2062,12 +2384,12 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiShield} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Current Account</Heading>
+                  <Heading size="md">{t.settings.currentAccountBackupHeading}</Heading>
                 </HStack>
                 <VStack align="stretch" gap={3}>
                   <HStack>
                     <Text fontSize="sm" color="gray.400">
-                      Logged in as:
+                      {t.settings.loggedInAsLabel}
                     </Text>
                     <Text fontSize="sm" fontWeight="bold" color="white">
                       {user?.displayName || user?.username}
@@ -2078,14 +2400,14 @@ const SettingsPage = () => {
                     <HStack justify="center" py={2}>
                       <Spinner size="sm" />
                       <Text fontSize="xs" color="gray.400">
-                        Loading addresses...
+                        {t.settings.loadingAddressesText}
                       </Text>
                     </HStack>
                   ) : (
                     <>
                       <Box>
                         <Text fontSize="xs" color="gray.500" mb={1}>
-                          Index #0 address:
+                          {t.settings.index0Label}
                         </Text>
                         <Code
                           fontSize="xs"
@@ -2096,12 +2418,12 @@ const SettingsPage = () => {
                           display="block"
                           wordBreak="break-all"
                         >
-                          {index0Address || 'Loading...'}
+                          {index0Address || t.settings.loadingText}
                         </Code>
                       </Box>
                       <Box>
                         <Text fontSize="xs" color="gray.500" mb={1}>
-                          Origin-specific, STANDARD mode, MAIN-tagged address (default wallet):
+                          {t.settings.mainAddressLabel}
                         </Text>
                         <Code
                           fontSize="xs"
@@ -2112,7 +2434,7 @@ const SettingsPage = () => {
                           display="block"
                           wordBreak="break-all"
                         >
-                          {mainAddress || 'Loading...'}
+                          {mainAddress || t.settings.loadingText}
                         </Code>
                       </Box>
                     </>
@@ -2124,18 +2446,18 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiCheckCircle} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Security Status</Heading>
+                  <Heading size="md">{t.settings.securityStatusHeading}</Heading>
                 </HStack>
                 {isCheckingStatus ? (
                   <HStack justify="center" py={4}>
                     <Spinner size="sm" />
                     <Text color="gray.400" fontSize="sm">
-                      Checking backup status...
+                      {t.settings.checkingStatusText}
                     </Text>
                   </HStack>
                 ) : (
                   <Text color="gray.300" fontSize="lg">
-                    {backupStatus || 'Loading...'}
+                    {backupStatus || t.settings.loadingText}
                   </Text>
                 )}
               </Box>
@@ -2152,10 +2474,10 @@ const SettingsPage = () => {
                 >
                   <Icon as={MdInfo} color={brandColors.primary} boxSize={6} mb={3} />
                   <Heading size="sm" mb={3}>
-                    Refresh Backup Status
+                    {t.settings.refreshHeading}
                   </Heading>
                   <Text fontSize="sm" color="gray.400" mb={4}>
-                    Reload your current security score and backup recommendations
+                    {t.settings.refreshDescription}
                   </Text>
                   <Button
                     bg={brandColors.primary}
@@ -2164,11 +2486,11 @@ const SettingsPage = () => {
                     onClick={handleGetBackupStatus}
                     loading={isCheckingStatus}
                     spinner={<Spinner size="50px" />}
-                    loadingText="Checking..."
+                    loadingText={t.settings.checkingText}
                     disabled={isCheckingStatus || isCreatingBackup || isRestoring}
                     width="full"
                   >
-                    Refresh Status
+                    {t.settings.refreshButton}
                   </Button>
                 </Box>
 
@@ -2183,10 +2505,10 @@ const SettingsPage = () => {
                 >
                   <Icon as={MdDownload} color={brandColors.primary} boxSize={6} mb={3} />
                   <Heading size="sm" mb={3}>
-                    Create Backup
+                    {t.settings.createHeading}
                   </Heading>
                   <Text fontSize="sm" color="gray.400" mb={4}>
-                    Download an encrypted backup file protected by your password
+                    {t.settings.createDescription}
                   </Text>
                   <Button
                     bg={brandColors.primary}
@@ -2195,11 +2517,11 @@ const SettingsPage = () => {
                     onClick={handleCreateBackup}
                     loading={isCreatingBackup}
                     spinner={<Spinner size="50px" />}
-                    loadingText="Creating..."
+                    loadingText={t.settings.creatingText}
                     disabled={isCheckingStatus || isCreatingBackup || isRestoring}
                     width="full"
                   >
-                    Create Backup
+                    {t.settings.createButton}
                   </Button>
                 </Box>
 
@@ -2214,10 +2536,10 @@ const SettingsPage = () => {
                 >
                   <Icon as={FiUpload} color={brandColors.primary} boxSize={6} mb={3} />
                   <Heading size="sm" mb={3}>
-                    Restore from Backup
+                    {t.settings.restoreHeadingCard}
                   </Heading>
                   <Text fontSize="sm" color="gray.400" mb={4}>
-                    Restore your wallet from an encrypted backup file &nbsp;
+                    {t.settings.restoreDescriptionCard}
                   </Text>
                   <Button
                     bg={brandColors.primary}
@@ -2226,41 +2548,25 @@ const SettingsPage = () => {
                     onClick={handleRestoreBackup}
                     loading={isRestoring}
                     spinner={<Spinner size="50px" />}
-                    loadingText="Restoring..."
+                    loadingText={t.settings.restoringText}
                     disabled={isCheckingStatus || isCreatingBackup || isRestoring}
                     width="full"
                   >
-                    Restore Backup
+                    {t.settings.restoreButtonCard}
                   </Button>
                 </Box>
               </SimpleGrid>
 
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <Heading size="sm" mb={4} color={brandColors.primary}>
-                  About Client-Side Backup
+                  {t.settings.aboutBackupHeading}
                 </Heading>
                 <VStack align="stretch" gap={3} fontSize="sm" color="gray.400">
-                  <Text>
-                    Your wallet&apos;s core secret (the mnemonic phrase) is generated and encrypted
-                    entirely on your device. The backup process retrieves this encrypted data from
-                    your browser&apos;s local storage using your password, then packages it into a
-                    secure file for you to download.
-                  </Text>
-                  <Text>
-                    The encryption key for your wallet is derived using a WebAuthn signature, which
-                    requires your biometric authentication (fingerprint, face scan) or device PIN.
-                    This means even if someone gains access to the encrypted data stored in your
-                    browser, they cannot decrypt it without your physical device and authentication.
-                  </Text>
-                  <Text>
-                    Your backup file is encrypted using AES-256-GCM with a key derived from the
-                    password you provide. Store this file securely and remember your password.
-                  </Text>
+                  <Text>{t.settings.aboutBackupPara1}</Text>
+                  <Text>{t.settings.aboutBackupPara2}</Text>
+                  <Text>{t.settings.aboutBackupPara3}</Text>
                   <Box p={4} bg="yellow.900/90" mt={2}>
-                    <Text fontSize="xs">
-                      If you lose access to your device, passkey, AND the backup file/password, your
-                      wallet cannot be recovered.
-                    </Text>
+                    <Text fontSize="xs">{t.settings.aboutBackupWarning}</Text>
                   </Box>
                 </VStack>
               </Box>
@@ -2271,11 +2577,10 @@ const SettingsPage = () => {
             <VStack gap={8} align="stretch">
               <Box>
                 <Heading size="lg" mb={4}>
-                  Social Recovery
+                  {t.settings.socialRecoveryHeading}
                 </Heading>
                 <Text color="gray.400" mb={6}>
-                  Distribute your wallet recovery among trusted guardians using Shamir Secret
-                  Sharing
+                  {t.settings.socialRecoveryDescription}
                 </Text>
               </Box>
 
@@ -2292,18 +2597,17 @@ const SettingsPage = () => {
                     >
                       <HStack mb={4}>
                         <Icon as={FiShield} color={brandColors.primary} boxSize={6} />
-                        <Heading size="md">Setup Social Recovery</Heading>
+                        <Heading size="md">{t.settings.setupHeading}</Heading>
                       </HStack>
                       <Text fontSize="sm" color="gray.400" mb={6}>
-                        Add trusted guardians who will help you recover your wallet. You&apos;ll
-                        need {threshold} out of {guardiansList.length || '?'} guardians to recover.
+                        {t.settings.setupDescription(threshold, guardiansList.length)}
                       </Text>
 
                       {/* Add Guardian Form */}
                       <VStack align="stretch" gap={4} mb={6}>
                         <Box>
                           <Text fontSize="sm" fontWeight="medium" mb={2}>
-                            Guardian Name *
+                            {t.settings.guardianNameLabel}
                           </Text>
                           <input
                             type="text"
@@ -2323,7 +2627,7 @@ const SettingsPage = () => {
                         </Box>
                         <Box>
                           <Text fontSize="sm" fontWeight="medium" mb={2}>
-                            Guardian Email (Optional)
+                            {t.settings.guardianEmailLabel}
                           </Text>
                           <input
                             type="email"
@@ -2347,7 +2651,7 @@ const SettingsPage = () => {
                           size="sm"
                           width="fit-content"
                         >
-                          Add Guardian
+                          {t.settings.addGuardianButton}
                         </Button>
                       </VStack>
 
@@ -2355,7 +2659,7 @@ const SettingsPage = () => {
                       {guardiansList.length > 0 && (
                         <Box mb={6}>
                           <Text fontSize="sm" fontWeight="medium" mb={3}>
-                            Guardians ({guardiansList.length})
+                            {t.settings.guardiansListHeading(guardiansList.length)}
                           </Text>
                           <VStack align="stretch" gap={2}>
                             {guardiansList.map((guardian, index) => (
@@ -2379,7 +2683,7 @@ const SettingsPage = () => {
                                     )}
                                   </Box>
                                   <IconButton
-                                    aria-label="Remove guardian"
+                                    aria-label={t.settings.removeGuardianAria}
                                     size="xs"
                                     colorPalette="red"
                                     variant="ghost"
@@ -2398,10 +2702,10 @@ const SettingsPage = () => {
                       {guardiansList.length >= 2 && (
                         <Box mb={6}>
                           <Text fontSize="sm" fontWeight="medium" mb={2}>
-                            Recovery Threshold: {threshold} of {guardiansList.length}
+                            {t.settings.thresholdLabel(threshold, guardiansList.length)}
                           </Text>
                           <Text fontSize="xs" color="gray.400" mb={3}>
-                            Number of guardians needed to recover your wallet
+                            {t.settings.thresholdDescription}
                           </Text>
                           <input
                             type="range"
@@ -2423,17 +2727,14 @@ const SettingsPage = () => {
                         disabled={guardiansList.length < 2}
                         width="full"
                       >
-                        Setup Social Recovery ({threshold}-of-{guardiansList.length || '?'})
+                        {t.settings.setupSocialRecoveryButton(threshold, guardiansList.length)}
                       </Button>
                     </Box>
 
                     {/* Info Box */}
                     <Box p={4} bg="blue.900/90" borderRadius="lg">
                       <Text fontSize="sm">
-                        <strong>How it works:</strong> Your wallet recovery will be split into{' '}
-                        {guardiansList.length || '?'} encrypted shares using Shamir Secret Sharing.
-                        You&apos;ll need {threshold} guardians to combine their shares to recover
-                        your wallet. No single guardian can access your wallet alone.
+                        {t.settings.howItWorksRecoveryInfo(guardiansList.length, threshold)}
                       </Text>
                     </Box>
 
@@ -2448,30 +2749,30 @@ const SettingsPage = () => {
                       <HStack mb={4} justify="space-between">
                         <HStack>
                           <Icon as={FiKey} color="orange.400" boxSize={6} />
-                          <Heading size="md">Recover Wallet</Heading>
+                          <Heading size="md">{t.settings.recoverWalletHeading}</Heading>
                         </HStack>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => setShowRecoverySection(!showRecoverySection)}
                         >
-                          {showRecoverySection ? 'Hide' : 'Show'}
+                          {showRecoverySection ? t.settings.hideButton : t.settings.showButton}
                         </Button>
                       </HStack>
 
                       {showRecoverySection && (
                         <VStack align="stretch" gap={4}>
                           <Text fontSize="sm" color="gray.400">
-                            Lost access to your wallet? Collect guardian shares to recover it.
+                            {t.settings.recoverDescription}
                           </Text>
 
                           {/* Share Input */}
                           <Box>
                             <Text fontSize="sm" fontWeight="medium" mb={2}>
-                              Guardian Share Code
+                              {t.settings.shareCodeLabel}
                             </Text>
                             <Textarea
-                              placeholder='Paste guardian share JSON here (e.g., {"guardianId":"...","share":"..."})'
+                              placeholder={t.settings.sharePlaceholder}
                               value={currentShareInput}
                               onChange={e => setCurrentShareInput(e.target.value)}
                               minH="100px"
@@ -2490,7 +2791,7 @@ const SettingsPage = () => {
                               colorPalette="purple"
                               size="sm"
                             >
-                              Add Share
+                              {t.settings.addShareButton}
                             </Button>
                             <Button
                               onClick={handleUploadShareFile}
@@ -2499,7 +2800,7 @@ const SettingsPage = () => {
                               size="sm"
                             >
                               <Icon as={FiUpload} mr={2} />
-                              Upload File
+                              {t.settings.uploadFileButton}
                             </Button>
                             <Button
                               onClick={() => {
@@ -2510,7 +2811,7 @@ const SettingsPage = () => {
                               colorPalette="gray"
                               size="sm"
                             >
-                              Clear All
+                              {t.settings.clearAllButton}
                             </Button>
                           </SimpleGrid>
 
@@ -2518,7 +2819,7 @@ const SettingsPage = () => {
                           {recoveryShares.length > 0 && (
                             <Box>
                               <Text fontSize="sm" fontWeight="medium" mb={3}>
-                                Collected Shares ({recoveryShares.length})
+                                {t.settings.collectedSharesHeading(recoveryShares.length)}
                               </Text>
                               <VStack align="stretch" gap={2}>
                                 {recoveryShares.map((share, index) => {
@@ -2536,15 +2837,19 @@ const SettingsPage = () => {
                                         <HStack justify="space-between">
                                           <Box>
                                             <Text fontSize="sm" fontWeight="bold">
-                                              {parsed.guardianName || 'Guardian'} (#
-                                              {parsed.guardianIndex || index + 1})
+                                              {parsed.guardianName || t.settings.guardianFallback}{' '}
+                                              {t.settings.shareIndexLabel(
+                                                parsed.guardianIndex || index + 1
+                                              )}
                                             </Text>
                                             <Text fontSize="xs" color="gray.400">
-                                              Added {new Date().toLocaleTimeString()}
+                                              {t.settings.addedAtLabel(
+                                                new Date().toLocaleTimeString()
+                                              )}
                                             </Text>
                                           </Box>
                                           <IconButton
-                                            aria-label="Remove share"
+                                            aria-label={t.settings.removeShareAria}
                                             size="xs"
                                             colorPalette="red"
                                             variant="ghost"
@@ -2567,10 +2872,10 @@ const SettingsPage = () => {
                                       >
                                         <HStack justify="space-between">
                                           <Text fontSize="sm" color="red.300">
-                                            Invalid share #{index + 1}
+                                            {t.settings.invalidShareLabel(index + 1)}
                                           </Text>
                                           <IconButton
-                                            aria-label="Remove share"
+                                            aria-label={t.settings.removeShareAria}
                                             size="xs"
                                             colorPalette="red"
                                             variant="ghost"
@@ -2591,11 +2896,10 @@ const SettingsPage = () => {
                           {recoveryShares.length > 0 && (
                             <Box p={4} bg="purple.900/50" borderRadius="lg">
                               <Text fontSize="sm" fontWeight="medium" mb={2}>
-                                Recovery Progress
+                                {t.settings.progressHeading}
                               </Text>
                               <Text fontSize="xs" color="gray.300">
-                                {recoveryShares.length} share(s) collected. You need at least 2
-                                shares to attempt recovery.
+                                {t.settings.progressText(recoveryShares.length)}
                               </Text>
                             </Box>
                           )}
@@ -2609,19 +2913,18 @@ const SettingsPage = () => {
                             disabled={recoveryShares.length < 2 || isRecovering}
                             loading={isRecovering}
                             spinner={<Spinner size="50px" />}
-                            loadingText="Recovering..."
+                            loadingText={t.settings.recoveringText}
                             width="full"
                             size="lg"
                           >
                             <Icon as={FiKey} mr={2} />
-                            Recover Wallet ({recoveryShares.length} shares)
+                            {t.settings.recoverButton(recoveryShares.length)}
                           </Button>
 
                           {/* Warning */}
                           <Box p={3} bg="yellow.900/90" borderRadius="md">
                             <Text fontSize="xs" color="gray.300">
-                              <strong>Important:</strong> Make sure the shares are from the correct
-                              guardians. Invalid shares will cause recovery to fail.
+                              {t.settings.importantWarning}
                             </Text>
                           </Box>
                         </VStack>
@@ -2640,11 +2943,13 @@ const SettingsPage = () => {
                     >
                       <HStack mb={4}>
                         <Icon as={MdCheckCircle} color="green.400" boxSize={6} />
-                        <Heading size="md">Social Recovery Active</Heading>
+                        <Heading size="md">{t.settings.activeHeading}</Heading>
                       </HStack>
                       <Text fontSize="sm" color="gray.400" mb={4}>
-                        Your wallet is protected with {socialRecoveryConfig.threshold}-of-
-                        {socialRecoveryConfig.totalGuardians} guardian recovery
+                        {t.settings.activeDescription(
+                          socialRecoveryConfig.threshold,
+                          socialRecoveryConfig.totalGuardians
+                        )}
                       </Text>
 
                       {/* Guardians List */}
@@ -2690,7 +2995,7 @@ const SettingsPage = () => {
                                 px={4}
                                 flexShrink={0}
                               >
-                                Generate Invite
+                                {t.settings.generateInviteButton}
                               </Button>
                             </HStack>
                           </Box>
@@ -2701,9 +3006,7 @@ const SettingsPage = () => {
                       <Box p={4} bg="blue.900/90" borderRadius="lg">
                         <VStack gap={3} align="stretch">
                           <Text fontSize="sm" color="gray.300">
-                            <strong>All guardians have their shares?</strong> You can now remove the
-                            guardian configuration from local storage. The shares are safely stored
-                            with your guardians and can be used for recovery anytime.
+                            {t.settings.removeConfigQuestion}
                           </Text>
                           <Button
                             onClick={handleClearSocialRecovery}
@@ -2712,7 +3015,7 @@ const SettingsPage = () => {
                             width="full"
                             size="sm"
                           >
-                            Clear Guardian Config from Local Storage
+                            {t.settings.removeConfigButton}
                           </Button>
                         </VStack>
                       </Box>
@@ -2728,7 +3031,7 @@ const SettingsPage = () => {
                         borderColor="purple.700"
                       >
                         <HStack justify="space-between" mb={4}>
-                          <Heading size="md">Guardian Invitation</Heading>
+                          <Heading size="md">{t.settings.invitationHeading}</Heading>
                           <CloseButton onClick={() => setGuardianInvite(null)} />
                         </HStack>
 
@@ -2762,11 +3065,10 @@ const SettingsPage = () => {
                             width="full"
                           >
                             <Icon as={FiDownload} mr={2} />
-                            Download Invitation
+                            {t.settings.downloadInviteButton}
                           </Button>
                           <Text fontSize="xs" color="gray.400" textAlign="center">
-                            Send this invitation to{' '}
-                            <strong>{selectedGuardianForInvite?.name}</strong> via a secure channel
+                            {t.settings.sendInviteText(selectedGuardianForInvite?.name)}
                           </Text>
                         </VStack>
                       </Box>
@@ -2781,10 +3083,10 @@ const SettingsPage = () => {
             <VStack gap={8} align="stretch">
               <Box>
                 <Heading size="lg" mb={4}>
-                  Device Sync
+                  {t.settings.deviceSyncHeading}
                 </Heading>
                 <Text color="gray.400" mb={6}>
-                  Your passkey automatically syncs across devices using platform services
+                  {t.settings.deviceSyncDescription}
                 </Text>
               </Box>
 
@@ -2793,12 +3095,11 @@ const SettingsPage = () => {
                 <HStack mb={4} justify="space-between">
                   <HStack>
                     <Icon as={FiKey} color={brandColors.primary} boxSize={6} />
-                    <Heading size="md">Sync QR Code</Heading>
+                    <Heading size="md">{t.settings.qrHeading}</Heading>
                   </HStack>
                 </HStack>
                 <Text fontSize="sm" color="gray.400" mb={4}>
-                  Generate a QR code containing your wallet addresses to easily sync or verify your
-                  account information on another device.
+                  {t.settings.qrDescription}
                 </Text>
 
                 {!showQRCode ? (
@@ -2810,7 +3111,7 @@ const SettingsPage = () => {
                     disabled={!index0Address || !mainAddress}
                     width="full"
                   >
-                    Generate Sync QR Code
+                    {t.settings.generateQrButton}
                   </Button>
                 ) : (
                   <VStack gap={4} align="stretch">
@@ -2828,13 +3129,11 @@ const SettingsPage = () => {
                     </Box>
                     <Box p={4} bg="yellow.900/90" borderRadius="md">
                       <Text fontSize="xs" color="gray.300">
-                        <strong>Note:</strong> This QR code contains your public wallet addresses
-                        only. It does NOT contain your private keys or recovery phrase. Use it to
-                        verify your account on another device.
+                        {t.settings.qrNote}
                       </Text>
                     </Box>
                     <Button variant="outline" onClick={() => setShowQRCode(false)} width="full">
-                      Hide QR Code
+                      {t.settings.hideQrButton}
                     </Button>
                   </VStack>
                 )}
@@ -2844,15 +3143,15 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiCloud} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Verify QR Code Data</Heading>
+                  <Heading size="md">{t.settings.verifyHeading}</Heading>
                 </HStack>
                 <Text fontSize="sm" color="gray.400" mb={4}>
-                  Paste the JSON string from a scanned QR code to verify the wallet addresses.
+                  {t.settings.verifyDescription}
                 </Text>
 
                 <VStack gap={4} align="stretch">
                   <Textarea
-                    placeholder='Paste JSON data here (e.g., {"username":"...","ethereumAddress":"..."})'
+                    placeholder={t.settings.verifyPlaceholder}
                     value={pastedQRData}
                     onChange={e => handlePasteQRData(e.target.value)}
                     minH="120px"
@@ -2875,17 +3174,17 @@ const SettingsPage = () => {
                       >
                         {parsedQRData.error ? (
                           <Text fontSize="sm" color="red.300">
-                            <strong>Error:</strong> {parsedQRData.error}
+                            <strong>{t.settings.errorLabel}</strong> {parsedQRData.error}
                           </Text>
                         ) : (
                           <VStack align="stretch" gap={2}>
                             <Text fontSize="sm" fontWeight="bold" color="white" mb={2}>
-                              Parsed Data:
+                              {t.settings.parsedDataLabel}
                             </Text>
                             {parsedQRData.username && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  Username:
+                                  {t.settings.usernameFieldLabel}
                                 </Text>
                                 <Text fontSize="xs" color="white" fontWeight="medium">
                                   {parsedQRData.username}
@@ -2895,7 +3194,7 @@ const SettingsPage = () => {
                             {parsedQRData.ethereumAddress && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  Ethereum Address:
+                                  {t.settings.ethAddressLabel}
                                 </Text>
                                 <Code
                                   fontSize="xs"
@@ -2911,7 +3210,7 @@ const SettingsPage = () => {
                             {parsedQRData.index0Address && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  Index #0:
+                                  {t.settings.index0FieldLabel}
                                 </Text>
                                 <Code
                                   fontSize="xs"
@@ -2927,7 +3226,7 @@ const SettingsPage = () => {
                             {parsedQRData.mainAddress && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  MAIN-tagged:
+                                  {t.settings.mainTaggedLabel}
                                 </Text>
                                 <Code
                                   fontSize="xs"
@@ -2943,7 +3242,7 @@ const SettingsPage = () => {
                             {parsedQRData.openbarAddress && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  OPENBAR-tagged:
+                                  {t.settings.openbarTaggedLabel}
                                 </Text>
                                 <Code
                                   fontSize="xs"
@@ -2959,7 +3258,7 @@ const SettingsPage = () => {
                             {parsedQRData.timestamp && (
                               <HStack>
                                 <Text fontSize="xs" color="gray.400" width="140px">
-                                  Generated:
+                                  {t.settings.generatedLabel}
                                 </Text>
                                 <Text fontSize="xs" color="gray.300">
                                   {new Date(parsedQRData.timestamp).toLocaleString()}
@@ -2980,15 +3279,12 @@ const SettingsPage = () => {
                             width="full"
                           >
                             <Icon as={FiDatabase} mr={2} />
-                            Link This Wallet to Your Passkey Account
+                            {t.settings.linkWalletButton}
                           </Button>
 
                           <Box p={3} bg="blue.900/90" borderRadius="md">
                             <Text fontSize="xs" color="gray.300">
-                              <strong>What happens when you link:</strong> This will save the wallet
-                              addresses to both localStorage and IndexedDB, creating a persistent
-                              link between your passkey account and this HD wallet. You can use this
-                              to verify or sync wallet data across devices.
+                              {t.settings.linkExplanation}
                             </Text>
                           </Box>
                         </>
@@ -3002,29 +3298,13 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiShield} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">How QR Code Wallet Sync Works</Heading>
+                  <Heading size="md">{t.settings.howQrWorksHeading}</Heading>
                 </HStack>
                 <VStack align="stretch" gap={3} fontSize="sm" color="gray.400">
-                  <Text>
-                    <strong>Step 1: Generate QR Code</strong> - On your primary device, generate a
-                    QR code containing your wallet&apos;s public addresses. This QR code is safe to
-                    share as it only contains public information.
-                  </Text>
-                  <Text>
-                    <strong>Step 2: Scan & Verify</strong> - On your secondary device, scan the QR
-                    code using any QR scanner app, or manually copy the JSON data displayed in the
-                    QR code.
-                  </Text>
-                  <Text>
-                    <strong>Step 3: Link Wallets</strong> - Paste the JSON data into the
-                    verification area above and click &quot;Link This Wallet&quot;. This creates a
-                    persistent connection between your passkey account and the HD wallet addresses.
-                  </Text>
-                  <Text>
-                    <strong>What Gets Stored:</strong> Only public wallet addresses are stored in
-                    localStorage and IndexedDB. Your private keys and recovery phrase remain secure
-                    and are never transmitted or stored through this sync mechanism.
-                  </Text>
+                  <Text>{t.settings.qrStep1}</Text>
+                  <Text>{t.settings.qrStep2}</Text>
+                  <Text>{t.settings.qrStep3}</Text>
+                  <Text>{t.settings.whatGetsStored}</Text>
                 </VStack>
               </Box>
 
@@ -3032,38 +3312,31 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiCloud} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Passkey Platform Sync</Heading>
+                  <Heading size="md">{t.settings.platformSyncHeading}</Heading>
                 </HStack>
                 <VStack align="stretch" gap={3} fontSize="sm" color="gray.400">
-                  <Text>
-                    Your passkey credentials automatically sync across devices within the same
-                    ecosystem:
-                  </Text>
+                  <Text>{t.settings.platformSyncIntro}</Text>
                   <ListRoot gap={2} fontSize="sm" variant="plain">
                     <ListItem>
                       <Icon as={MdCheckCircle} color="green.400" mr={2} />
-                      <strong>Apple:</strong> Syncs via iCloud Keychain (iPhone, iPad, Mac)
+                      {t.settings.appleSyncNote}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdCheckCircle} color="green.400" mr={2} />
-                      <strong>Google:</strong> Syncs via Password Manager (Android, Chrome)
+                      {t.settings.googleSyncNote}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdWarning} color="yellow.400" mr={2} />
-                      <strong>Windows Hello:</strong> Device-specific, use encrypted backup for new
-                      devices
+                      {t.settings.windowsSyncNote}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdWarning} color="yellow.400" mr={2} />
-                      <strong>Hardware Keys:</strong> No sync, keep encrypted backup separately
+                      {t.settings.hardwareSyncNote}
                     </ListItem>
                   </ListRoot>
                   <Box p={3} bg="yellow.900/90" borderRadius="md" mt={2}>
                     <Text fontSize="xs" color="gray.300">
-                      <strong>Cross-platform limitation:</strong> Passkeys do not sync across
-                      different ecosystems (e.g., iPhone to Android). However, encrypted backups ARE
-                      fully cross-platform - you can restore your wallet on any device with the
-                      backup file and password, regardless of the original platform.
+                      {t.settings.crossPlatformNote}
                     </Text>
                   </Box>
                 </VStack>
@@ -3073,30 +3346,29 @@ const SettingsPage = () => {
               <Box bg="gray.900" p={6} borderRadius="lg" border="1px solid" borderColor="gray.700">
                 <HStack mb={4}>
                   <Icon as={FiCheckCircle} color={brandColors.primary} boxSize={6} />
-                  <Heading size="md">Best Practices</Heading>
+                  <Heading size="md">{t.settings.bestPracticesHeading}</Heading>
                 </HStack>
                 <VStack align="stretch" gap={2} fontSize="sm" color="gray.400">
                   <ListRoot gap={2} variant="plain">
                     <ListItem>
                       <Icon as={MdCheckCircle} color="green.400" mr={2} />
-                      Always create an encrypted backup before syncing to a new device
+                      {t.settings.practiceBackupFirst}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdCheckCircle} color="green.400" mr={2} />
-                      Verify wallet addresses match after syncing
+                      {t.settings.practiceVerifyAddresses}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdCheckCircle} color="green.400" mr={2} />
-                      Use the Debug & Inspect Storage tools to verify sync data was saved correctly
+                      {t.settings.practiceUseDebugTools}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdWarning} color="yellow.400" mr={2} />
-                      Never share your QR code publicly or on untrusted channels
+                      {t.settings.practiceNeverShareQr}
                     </ListItem>
                     <ListItem>
                       <Icon as={MdInfo} color="blue.400" mr={2} />
-                      QR codes only contain public addresses, but still treat them as sensitive
-                      account information
+                      {t.settings.practiceTreatAsSensitive}
                     </ListItem>
                   </ListRoot>
                 </VStack>
@@ -3104,22 +3376,163 @@ const SettingsPage = () => {
             </VStack>
           </TabsContent>
         </TabsRoot>
+
+        {/* AI Inspection feature (disabled)
+        <Box
+          mt={12}
+          bg="gray.900"
+          p={8}
+          borderRadius="lg"
+          border="2px solid"
+          borderColor="purple.500"
+        >
+          {!securityReport ? (
+            <Box textAlign="center">
+              <HStack justify="center" mb={4}>
+                <Icon as={FiShield} color="purple.400" boxSize={8} />
+                <Heading size="lg">{t.settings.inspectionHeadingBig}</Heading>
+              </HStack>
+              <Text color="gray.400" mb={6} maxW="2xl" mx="auto">
+                {t.settings.inspectSecurityDescriptionBig}
+              </Text>
+              <Button
+                bg="purple.500"
+                color="white"
+                _hover={{ bg: 'purple.600' }}
+                onClick={handleInspect}
+                disabled={isInspecting}
+                size="lg"
+                px={8}
+              >
+                {isInspecting ? (
+                  <HStack>
+                    <Spinner size="sm" />
+                    <Text>{t.settings.inspectingText}</Text>
+                  </HStack>
+                ) : (
+                  <HStack>
+                    <Icon as={FiShield} />
+                    <Text>{t.settings.inspectNowButton}</Text>
+                  </HStack>
+                )}
+              </Button>
+              <Text fontSize="sm" color="gray.500" mt={4}>
+                {t.settings.consoleHintText}
+              </Text>
+            </Box>
+          ) : (
+            <VStack align="stretch" gap={4}>
+              <HStack justify="space-between">
+                <HStack>
+                  <Icon as={FiShield} color="purple.400" boxSize={6} />
+                  <Heading size="lg">{t.settings.securityReportHeading}</Heading>
+                </HStack>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  colorPalette="purple"
+                  onClick={() => setSecurityReport(null)}
+                >
+                  {t.settings.clearReportButton}
+                </Button>
+              </HStack>
+
+              <Text fontSize="sm" color="gray.400">
+                <strong>{t.settings.filesAnalyzedLabel}</strong>{' '}
+                {securityReport.analyzedFiles.length} | <strong>{t.settings.appUrlLabel}</strong>{' '}
+                {securityReport.appUrl}
+              </Text>
+
+              <Box
+                bg="gray.950"
+                p={6}
+                borderRadius="md"
+                border="1px solid"
+                borderColor="gray.700"
+                maxH="600px"
+                overflowY="auto"
+              >
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({ children }: any) => (
+                      <Text fontSize="2xl" fontWeight="bold" mb={3} color="white">
+                        {children}
+                      </Text>
+                    ),
+                    h2: ({ children }: any) => (
+                      <Text fontSize="xl" fontWeight="bold" mt={4} mb={2} color="blue.300">
+                        {children}
+                      </Text>
+                    ),
+                    h3: ({ children }: any) => (
+                      <Text fontSize="lg" fontWeight="semibold" mt={3} mb={2} color="purple.300">
+                        {children}
+                      </Text>
+                    ),
+                    h4: ({ children }: any) => (
+                      <Text fontSize="md" fontWeight="semibold" mt={2} mb={1} color="purple.200">
+                        {children}
+                      </Text>
+                    ),
+                    p: ({ children }: any) => (
+                      <Text fontSize="sm" mb={2} color="gray.300">
+                        {children}
+                      </Text>
+                    ),
+                    ul: ({ children }: any) => (
+                      <Box as="ul" pl={4} mb={2}>
+                        {children}
+                      </Box>
+                    ),
+                    li: ({ children }: any) => (
+                      <Text as="li" fontSize="sm" mb={1} color="gray.300">
+                        {children}
+                      </Text>
+                    ),
+                    strong: ({ children }: any) => (
+                      <Text as="strong" fontWeight="bold" color="white">
+                        {children}
+                      </Text>
+                    ),
+                    code: ({ children }: any) => (
+                      <Code colorPalette="purple" fontSize="xs">
+                        {children}
+                      </Code>
+                    ),
+                    hr: () => <Box as="hr" my={3} borderColor="gray.700" />,
+                  }}
+                >
+                  {(() => {
+                    try {
+                      const parsed = JSON.parse(securityReport.report)
+                      return parsed.output || securityReport.report
+                    } catch {
+                      return securityReport.report
+                    }
+                  })()}
+                </ReactMarkdown>
+              </Box>
+            </VStack>
+          )}
+        </Box>
+        */}
       </VStack>
 
       <PasswordModal
         isOpen={showPasswordModal}
         onClose={handleModalClose}
         onSubmit={handlePasswordSubmit}
-        title={`Enter Password to Create Backup`}
-        description={`Please enter your password to create the backup. This is required by the w3pk SDK to access your encrypted wallet data.`}
+        title={t.settings.createBackupModalTitle}
+        description={t.settings.createBackupModalDescription}
       />
 
       <PasswordModal
         isOpen={showRestorePasswordModal}
         onClose={handleRestoreModalClose}
         onSubmit={handleRestorePasswordSubmit}
-        title={`Enter Password to Restore Backup`}
-        description={`Please enter the password you used when creating this backup file.`}
+        title={t.settings.restoreBackupModalTitle}
+        description={t.settings.restoreBackupModalDescription}
       />
 
       {/* Username Modal for Restore when no credentials exist */}
@@ -3142,15 +3555,14 @@ const SettingsPage = () => {
           <Dialog.Positioner>
             <Dialog.Content p={6}>
               <Dialog.Header>
-                <Dialog.Title>Choose Username for Restored Wallet</Dialog.Title>
+                <Dialog.Title>{t.settings.chooseUsernameModalTitle}</Dialog.Title>
               </Dialog.Header>
               <Dialog.Body pt={4}>
                 <VStack gap={4}>
                   <Text fontSize="sm" color="gray.400">
-                    No existing credentials found on this device. Please choose a username to
-                    register your restored wallet with a new passkey.
+                    {t.settings.chooseUsernameModalDescription}
                   </Text>
-                  <Field invalid={isRestoreUsernameInvalid} label="Username">
+                  <Field invalid={isRestoreUsernameInvalid} label={t.header.usernameLabel}>
                     <Input
                       id="restore-username-input"
                       aria-describedby={
@@ -3158,7 +3570,7 @@ const SettingsPage = () => {
                           ? 'restore-username-error'
                           : undefined
                       }
-                      placeholder="Enter your username"
+                      placeholder={t.header.usernamePlaceholder}
                       value={restoreUsername}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         setRestoreUsername(e.target.value)
@@ -3175,8 +3587,7 @@ const SettingsPage = () => {
                     />
                     {isRestoreUsernameInvalid && restoreUsername.trim() && (
                       <Text id="restore-username-error" fontSize="sm" color="red.400" mt={1}>
-                        Username must be 3-50 characters, alphanumeric with underscores/hyphens, and
-                        start/end with alphanumeric.
+                        {t.settings.usernameFormatError}
                       </Text>
                     )}
                   </Field>
@@ -3195,7 +3606,7 @@ const SettingsPage = () => {
                       delete (window as any)._restoreBackup
                     }}
                   >
-                    Cancel
+                    {t.common.cancel}
                   </Button>
                 </Dialog.CloseTrigger>
                 <Button
@@ -3204,10 +3615,10 @@ const SettingsPage = () => {
                   _hover={{ bg: brandColors.secondary }}
                   onClick={handleRestoreWithUsername}
                   loading={isRestoring}
-                  loadingText="Restoring & Registering..."
+                  loadingText={t.settings.restoringRegisteringText}
                   disabled={isRestoring || !restoreUsername.trim()}
                 >
-                  Restore & Register
+                  {t.settings.restoreRegisterButton}
                 </Button>
               </Dialog.Footer>
             </Dialog.Content>
@@ -3225,26 +3636,20 @@ const SettingsPage = () => {
           <Dialog.Positioner>
             <Dialog.Content p={6}>
               <Dialog.Header>
-                <Dialog.Title>Remove Account</Dialog.Title>
+                <Dialog.Title>{t.settings.removeAccountModalTitle}</Dialog.Title>
               </Dialog.Header>
               <Dialog.Body pt={4}>
                 <VStack gap={4} align="stretch">
-                  <Text>
-                    Are you sure you want to remove the account{' '}
-                    <strong>{accountToDelete?.username}</strong>?
-                  </Text>
+                  <Text>{t.settings.removeAccountConfirm(accountToDelete?.username ?? '')}</Text>
                   <Box bg="red.900" p={3} borderRadius="md">
                     <Text fontSize="sm" color="red.200">
-                      <strong>Warning:</strong> This will delete all data for this account from this
-                      device. Make sure you have a backup before proceeding. This action cannot be
-                      undone.
+                      {t.settings.removeAccountWarning}
                     </Text>
                   </Box>
                   {user?.ethereumAddress === accountToDelete?.ethereumAddress && (
                     <Box bg="orange.900" p={3} borderRadius="md">
                       <Text fontSize="sm" color="orange.200">
-                        This is your currently logged-in account. You will be logged out after
-                        removal.
+                        {t.settings.removeAccountLoggedOutNote}
                       </Text>
                     </Box>
                   )}
@@ -3253,7 +3658,7 @@ const SettingsPage = () => {
 
               <Dialog.Footer gap={3} pt={6}>
                 <Dialog.ActionTrigger asChild>
-                  <Button variant="outline">Cancel</Button>
+                  <Button variant="outline">{t.common.cancel}</Button>
                 </Dialog.ActionTrigger>
                 <Button
                   bg={brandColors.accent}
@@ -3261,7 +3666,7 @@ const SettingsPage = () => {
                   _hover={{ bg: '#3690e0' }}
                   onClick={confirmDeleteAccount}
                 >
-                  Remove Account
+                  {t.settings.removeAccountButton}
                 </Button>
               </Dialog.Footer>
               <Dialog.CloseTrigger asChild>
@@ -3285,19 +3690,19 @@ const SettingsPage = () => {
                 <Dialog.Title>
                   <HStack>
                     <Icon as={FiHardDrive} />
-                    <Text>LocalStorage Inspection</Text>
+                    <Text>{t.settings.localStorageModalTitle}</Text>
                   </HStack>
                 </Dialog.Title>
               </Dialog.Header>
               <Dialog.Body pt={4}>
                 <VStack align="stretch" gap={4}>
                   <Text fontSize="sm" color="gray.400">
-                    Found {localStorageData.length} items in localStorage
+                    {t.settings.foundItemsText(localStorageData.length)}
                   </Text>
 
                   {localStorageData.length === 0 ? (
                     <Box bg="gray.900" p={4} borderRadius="md" textAlign="center">
-                      <Text color="gray.500">No data found</Text>
+                      <Text color="gray.500">{t.settings.noDataFound}</Text>
                     </Box>
                   ) : (
                     localStorageData.map((item, index) => (
@@ -3317,7 +3722,7 @@ const SettingsPage = () => {
                             <HStack gap={2}>
                               {item.encrypted && (
                                 <Badge colorPalette="orange" fontSize="xs">
-                                  Encrypted
+                                  {t.settings.encryptedBadge}
                                 </Badge>
                               )}
                               <Badge
@@ -3349,7 +3754,7 @@ const SettingsPage = () => {
                 </VStack>
               </Dialog.Body>
               <Dialog.Footer gap={3} pt={6}>
-                <Button onClick={() => setShowLocalStorageModal(false)}>Close</Button>
+                <Button onClick={() => setShowLocalStorageModal(false)}>{t.common.close}</Button>
               </Dialog.Footer>
               <Dialog.CloseTrigger asChild>
                 <CloseButton size="sm" />
@@ -3372,19 +3777,19 @@ const SettingsPage = () => {
                 <Dialog.Title>
                   <HStack>
                     <Icon as={FiDatabase} />
-                    <Text>IndexedDB Inspection</Text>
+                    <Text>{t.settings.indexedDBModalTitle}</Text>
                   </HStack>
                 </Dialog.Title>
               </Dialog.Header>
               <Dialog.Body pt={4}>
                 <VStack align="stretch" gap={4}>
                   <Text fontSize="sm" color="gray.400">
-                    Found {indexedDBData.length} database(s)
+                    {t.settings.foundDatabasesText(indexedDBData.length)}
                   </Text>
 
                   {indexedDBData.length === 0 ? (
                     <Box bg="gray.900" p={4} borderRadius="md" textAlign="center">
-                      <Text color="gray.500">No w3pk-related databases found</Text>
+                      <Text color="gray.500">{t.settings.noDatabasesFound}</Text>
                     </Box>
                   ) : (
                     indexedDBData.map((db, dbIndex) => (
@@ -3407,11 +3812,11 @@ const SettingsPage = () => {
                           </HStack>
 
                           <Text fontSize="xs" color="gray.400">
-                            Stores: {db.stores.join(', ')}
+                            {t.settings.storesLabel} {db.stores.join(', ')}
                           </Text>
 
                           <Text fontSize="xs" color="gray.400">
-                            Records: {db.records.length}
+                            {t.settings.recordsLabel} {db.records.length}
                           </Text>
 
                           {db.records.length > 0 && (
@@ -3426,7 +3831,7 @@ const SettingsPage = () => {
                                   borderColor="gray.800"
                                 >
                                   <Text fontSize="xs" color="gray.400" mb={2}>
-                                    Store: {record.store} | Key: {record.key}
+                                    {t.settings.storeKeyLabel(record.store, record.key)}
                                   </Text>
                                   <Box overflowX="auto">
                                     <CodeBlock>
@@ -3444,7 +3849,7 @@ const SettingsPage = () => {
                 </VStack>
               </Dialog.Body>
               <Dialog.Footer gap={3} pt={6}>
-                <Button onClick={() => setShowIndexedDBModal(false)}>Close</Button>
+                <Button onClick={() => setShowIndexedDBModal(false)}>{t.common.close}</Button>
               </Dialog.Footer>
               <Dialog.CloseTrigger asChild>
                 <CloseButton size="sm" />

@@ -2,3 +2,10 @@ packages:
   # Only include the root package, explicitly exclude contracts
   - '.'
   - '!contracts'
+# Supply-chain protection: refuse to install versions published less than
+# 3 days ago, so a hijacked release is likely yanked before it can be pulled.
+minimumReleaseAge: 4320
+# w3pk is published by this project's own maintainer; new releases are
+# installed without the quarantine delay.
+minimumReleaseAgeExclude:
+  - w3pk
