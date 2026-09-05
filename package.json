@@ -14,7 +14,7 @@
     "test:a11y": "echo '⚠️  Run Lighthouse in Chrome DevTools or install pa11y: npx pa11y http://localhost:3000'"
   },
   "dependencies": {
-    "@chakra-ui/react": "^3.36.1",
+    "@chakra-ui/react": "^3.37.0",
     "@emotion/react": "^11.14.0",
     "@neondatabase/serverless": "^1.1.0",
     "@types/react-syntax-highlighter": "^15.5.13",
